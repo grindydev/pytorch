@@ -505,3 +505,4 @@ def train_model(model, optimizer, loss_fcn, train_dataloader, device, n_epochs):
 
     # Close the progress bar and print a final completion message
     pbar.close("Training complete!\n")
+    
