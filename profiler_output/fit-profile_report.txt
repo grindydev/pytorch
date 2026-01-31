@@ -1,0 +1,27 @@
+FIT Profiler Report
+Profile stats for: records
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+                                                   Name    Self CPU %      Self CPU   CPU total %     CPU total  CPU time avg       CPU Mem  Self CPU Mem    # of Calls  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+                                          ProfilerStep*        17.76%     852.190ms        80.17%        3.847s     384.746ms           0 B     -15.01 MB            10  
+                                               aten::to         0.11%       5.470ms        71.42%        3.428s     475.394us      15.01 MB           0 B          7210  
+                                         aten::_to_copy         0.14%       6.828ms        71.30%        3.422s     779.526us      15.01 MB      24.06 KB          4390  
+                                            aten::copy_        71.24%        3.419s        71.24%        3.419s     484.307us           0 B           0 B          7060  
+[pl][profile][Strategy]SingleDeviceStrategy.batch_to...         0.06%       2.646ms        54.04%        2.594s     259.362ms           0 B           0 B            10  
+[pl][profile][LightningModule]CIFAR10LightningModule...         0.04%       2.146ms        53.97%        2.590s     259.031ms           0 B           0 B            10  
+                        [pl][profile]run_training_batch         0.04%       1.693ms        21.08%        1.012s     101.158ms           0 B           0 B            10  
+[pl][profile][LightningModule]CIFAR10LightningModule...         0.02%     824.727us        21.04%        1.010s     100.983ms           0 B           0 B            10  
+                              Optimizer.step#AdamW.step         1.82%      87.221ms        21.02%        1.009s     100.898ms           0 B           0 B            10  
+[pl][profile][Strategy]SingleDeviceStrategy.training...         0.58%      27.643ms        19.20%     921.637ms      92.164ms           0 B           0 B            10  
+[pl][module]torchmetrics.classification.accuracy.Mul...         0.22%      10.649ms        17.63%     846.233ms      84.623ms           0 B         -40 B            10  
+[pl][profile][_TrainingEpochLoop].train_dataloader_n...         0.01%     620.900us         4.58%     219.807ms      21.981ms      15.01 MB           0 B            10  
+enumerate(DataLoader)#_SingleProcessDataLoaderIter._...         2.75%     132.033ms         4.57%     219.186ms      21.919ms      15.01 MB     -48.78 MB            10  
+[pl][profile][Strategy]SingleDeviceStrategy.backward...         0.88%      42.142ms         0.95%      45.798ms       4.580ms         -80 B         -80 B            10  
+[pl][module]torch.nn.modules.container.Sequential: m...         0.13%       6.020ms         0.74%      35.714ms       3.571ms           0 B           0 B            10  
+                                            aten::clone         0.09%       4.513ms         0.40%      19.354ms       7.249us      18.75 MB           0 B          2670  
+                                              aten::div         0.18%       8.504ms         0.30%      14.339ms      10.170us      15.00 MB      14.99 MB          1410  
+                                               aten::eq         0.16%       7.861ms         0.28%      13.606ms      10.547us       3.75 KB      -1.25 KB          1290  
+                                       aten::contiguous         0.02%       1.147ms         0.26%      12.296ms       9.606us       3.75 MB           0 B          1280  
+                                         aten::addcmul_         0.22%      10.722ms         0.22%      10.722ms     107.219us           0 B           0 B           100  
+-------------------------------------------------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  ------------  
+Self CPU time total: 4.799s
