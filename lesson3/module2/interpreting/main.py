@@ -148,8 +148,7 @@ class ThreeLayerCNN(nn.Module):
             x = layer(x)
         # Return the final processed tensor
         return x
-
-
+    
 # Dictionary to store the captured feature maps
 activations = {}
 
@@ -184,6 +183,7 @@ def grab(name):
 
 model = ThreeLayerCNN()
 
+
 # Register forward hooks on specific layers to capture activations during a forward pass
 # This helps us visualize what features each layer detects
 model.layers[0].register_forward_hook(grab('layer1'))  # Hook for layer1
@@ -194,21 +194,28 @@ model.layers[2].register_forward_hook(grab('layer3'))  # Hook for layer3
 output = model(ball_tensor.unsqueeze(0))
 print(output.shape)
 
+
 # Printing the shapes after each layer
 for layer, output_tensor in activations.items():
     print(f"Output shape after {layer}: {output_tensor.shape}")
 
 helper_utils.visualize_all_layers_grids(activations)
 
+
 rfinfo = helper_utils.calculate_receptive_field(model, input_size=224)
 helper_utils.plot_receptive_field_summary(rfinfo)
+
 
 # Load pre-trained ResNet50
-torch.hub.set_dir(Path.cwd() / 'data/pretrained_model')
+pretrained_model_path = Path.cwd() / 'data/pretrained_model'
+torch.hub.set_dir(pretrained_model_path)
 model = tv_models.resnet50(weights=tv_models.ResNet50_Weights.IMAGENET1K_V2).eval()
+
+# help(tv_models.resnet50)
 
 rfinfo = helper_utils.calculate_receptive_field(model, input_size=224)
 helper_utils.plot_receptive_field_summary(rfinfo)
+
 
 # Reset activations dictionary
 activations = {}
@@ -218,6 +225,7 @@ model.layer1[0].conv1.register_forward_hook(grab('layer1'))  # Early block
 model.layer2[0].conv1.register_forward_hook(grab('layer2'))  # Middle block
 model.layer3[0].conv1.register_forward_hook(grab('layer3'))  # Later block
 model.layer4[0].conv1.register_forward_hook(grab('layer4'))  # Deep block
+
 
 # Load and preprocess an image
 transform = transforms.Compose([
@@ -229,7 +237,8 @@ transform = transforms.Compose([
 ])
 
 # Load a sample image (let's say we have a cat image)
-image = Image.open(Path.cwd() / 'data/images/cat.jpg')
+cat_path = Path.cwd() / 'data/images/cat.jpg'
+image = Image.open(cat_path)
 input_tensor = transform(image).unsqueeze(0)  # Add batch dimension
 
 # Forward pass through the model
@@ -247,10 +256,7 @@ plt.axis('off')
 
 helper_utils.visualize_all_layers_grids(activations)
 
-helper_utils.plot_rfinfo_over_image(rfinfo, Path.cwd() / 'data/images/cat.jpg', input_size=224)
+helper_utils.plot_rfinfo_over_image(rfinfo, cat_path, input_size=224)
 
-file_path = Path.cwd()/ 'data/imagenet_classes.txt'
-images_folder = Path.cwd()/ 'data/images'
-
-helper_utils.plot_widget(model, file_path, images_folder)
+helper_utils.plot_widget(model, data_path=Path.cwd() / 'data')
 

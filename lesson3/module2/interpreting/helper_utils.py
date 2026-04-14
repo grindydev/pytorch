@@ -381,7 +381,7 @@ def plot_rfinfo_over_image(rfinfo, img_path, input_size=224, layers_to_show=None
     plt.show()
 
 
-def plot_widget(model, file_path, images_folder):
+def plot_widget(model, data_path):
     """
     Creates an interactive widget to visualize feature maps and model predictions.
     
@@ -395,10 +395,11 @@ def plot_widget(model, file_path, images_folder):
     # import urllib.request
     #urllib.request.urlretrieve("https://raw.githubusercontent.com/pytorch/hub/master/imagenet_classes.txt", "imagenet_classes.txt")
     
-    with open(file_path) as f:
+    with open(data_path / "imagenet_classes.txt") as f:
         imagenet_labels = [line.strip() for line in f.readlines()]
     
     # --------- CONFIG ---------
+    images_folder = data_path / 'images'
     canvas_size = (512, 512)
     INPUT_OPTION_NAME = "🟢 Input image"
     # --------------------------
