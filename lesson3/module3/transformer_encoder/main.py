@@ -690,3 +690,287 @@ history = helper_utils.train_model(
 
 helper_utils.plot_training_history(history)
 
+class Encoder(nn.Module):
+    """
+    A modular Transformer-based Encoder for sequence representation.
+    """
+    def __init__(self, vocab_size, d_model=256, nhead=8, num_layers=3, 
+                 dim_feedforward=512, max_len=100, dropout=0.1):
+        """
+        Initializes the encoder components including embeddings and transformer layers.
+
+        Args:
+            vocab_size (int): The total number of unique tokens in the input vocabulary.
+            d_model (int): The dimensionality of the token embeddings and hidden states.
+            nhead (int): The number of heads in the multi-head attention mechanism.
+            num_layers (int): The number of transformer encoder layers to stack.
+            dim_feedforward (int): The dimensionality of the internal feed-forward network.
+            max_len (int): The maximum sequence length for positional encodings.
+            dropout (float): The dropout probability used for regularization.
+        """
+        super().__init__()
+        # Store internal model hyperparameters
+        self.d_model = d_model
+        self.vocab_size = vocab_size
+        self.nhead = nhead
+        self.num_layers = num_layers
+        self.dim_feedforward = dim_feedforward
+        self.max_len = max_len
+        self.dropout_value = dropout
+        
+        # Layer to map token indices to dense vectors
+        self.token_emb = nn.Embedding(vocab_size, d_model, padding_idx=0)
+        
+        # Module to inject sequence order information into the embeddings
+        self.pos_enc = PositionalEncoding(max_len, d_model)
+        
+        # Regularization layer applied to the input embeddings
+        self.dropout = nn.Dropout(dropout)
+         
+        # Configuration for a single transformer encoder layer
+        enc_layer = nn.TransformerEncoderLayer(
+            d_model=d_model, 
+            nhead=nhead, 
+            dim_feedforward=dim_feedforward, 
+            dropout=dropout, 
+            batch_first=True 
+        )
+        # Stack of identical transformer encoder layers
+        self.transformer_encoder = nn.TransformerEncoder(enc_layer, num_layers=num_layers)
+        
+    def forward(self, src):
+        """
+        Processes the input sequence through the encoder layers.
+
+        Args:
+            src (Tensor): Input token indices of shape [batch_size, seq_len].
+
+        Returns:
+            memory (Tensor): The final encoded representations of shape [batch_size, seq_len, d_model].
+            padding_mask (Tensor): A boolean mask indicating padding locations of shape [batch_size, seq_len].
+        """
+        # Generate a boolean mask to identify padding tokens for the attention mechanism
+        padding_mask = create_padding_mask(src, pad_idx=0)
+        
+        # Transform indices to vectors, SCALE THEM, and combine them with positional information
+        src = (self.token_emb(src) * math.sqrt(self.d_model)) + self.pos_enc(src)
+        
+        # Apply dropout to the sum of token and positional embeddings
+        src = self.dropout(src)
+        
+        # Pass the input through the transformer stack using the padding mask to ignore pad tokens
+        memory = self.transformer_encoder(src, src_key_padding_mask=padding_mask)
+        
+        # Provide both the encoded features and the mask for subsequent layers or decoders
+        return memory, padding_mask
+
+
+# Initialize your encoder
+encoder = Encoder(
+    vocab_size=1000,
+    d_model=128,
+    nhead=8,
+    num_layers=2,
+    dim_feedforward=512,
+    max_len=100,
+    dropout=0.1
+)
+encoder.eval()
+
+# Sample input
+input_batch = torch.tensor([
+    [2, 45, 23, 3, 0, 0],  # 4 tokens + 2 padding
+    [2, 12, 89, 34, 56, 3]  # 6 tokens, no padding
+])
+
+print("Input:", input_batch)
+print()
+
+# Your encoder always returns both output and padding mask
+with torch.no_grad():
+    memory, padding_mask = encoder(input_batch)
+
+print("Encoder returns:")
+print(f"  memory shape: {memory.shape}")
+print(f"  padding_mask shape: {padding_mask.shape}")
+print(f"  padding_mask: {padding_mask}")
+print()
+
+
+pytorch_model = Encoder(vocab_size=vocab_size, d_model=128, max_len = 256, num_layers = 2).to(device)
+
+helper_utils.print_summary(pytorch_model, vocab_size=vocab_size)
+
+# Test with a sample batch
+sample_input, sample_labels = next(iter(train_loader))
+sample_input = sample_input.to(device)
+
+output = pytorch_model(sample_input)
+print(f"\nTest forward pass:")
+print(f"  Input shape: {sample_input.shape}")
+print(f"  Output shape: {output[0].shape}")
+print("  Model works! ✓")
+
+class IMDBClassifierWithPytorchEncoder(nn.Module):
+    """
+    A sentiment classification model built upon a Transformer-based encoder.
+    """
+    def __init__(self, vocab_size, d_model=128, nhead=8, num_layers=2, 
+                 dim_feedforward=512, max_len=256, dropout=0.1):
+        """
+        Initializes the classifier by configuring the encoder and the output layer.
+
+        Args:
+            vocab_size (int): The total number of unique tokens in the vocabulary.
+            d_model (int): The dimensionality of the token embeddings and hidden states.
+            nhead (int): The number of heads in the multi-head attention mechanism.
+            num_layers (int): The number of transformer encoder layers to stack.
+            dim_feedforward (int): The dimensionality of the internal feed-forward network.
+            max_len (int): The maximum sequence length allowed for positional encodings.
+            dropout (float): The dropout probability used for regularization.
+        """
+        super().__init__()
+        
+        # Core encoding module used to extract contextual features from sequence data
+        self.encoder = Encoder(
+            vocab_size=vocab_size,
+            d_model=d_model,
+            nhead=nhead,
+            num_layers=num_layers,
+            dim_feedforward=dim_feedforward,
+            max_len=max_len,
+            dropout=dropout
+        )
+        
+        # Linear projection layer used to map encoded features to class scores
+        self.classifier = nn.Linear(d_model, 2)
+        
+    def forward(self, x):
+        """
+        Processes the input sequence through the encoder and classifier layers.
+
+        Args:
+            x (Tensor): Input tensor of token indices with shape [batch_size, seq_len].
+
+        Returns:
+            logits (Tensor): The raw classification scores with shape [batch_size, 2].
+        """
+        # Retrieve the encoded sequence representations and the associated padding mask
+        memory, padding_mask = self.encoder(x)
+        
+        # Perform global average pooling across the sequence dimension to aggregate information
+        pooled = memory.mean(dim=1)
+        
+        # Pass the aggregated representation through the linear classifier to get logits
+        logits = self.classifier(pooled)
+        
+        # Return the final classification scores
+        return logits
+    
+
+# Create the simple classifier
+pytorch_model = IMDBClassifierWithPytorchEncoder(
+    vocab_size=vocab_size,
+    d_model=128,
+    num_layers=2,
+    max_len=256
+).to(device)
+
+helper_utils.print_summary(pytorch_model)
+
+
+# Loss function for classification
+pytorch_criterion = nn.CrossEntropyLoss()
+
+# Optimizer - Adam with learning rate 0.001
+learning_rate = 0.001
+pytorch_optimizer = optim.Adam(pytorch_model.parameters(), lr=learning_rate)
+
+print("Training setup:")
+print(f"  Loss function: CrossEntropyLoss")
+print(f"  Optimizer: Adam")
+print(f"  Learning rate: {learning_rate}")
+print(f"  Batch size: {batch_size}")
+print(f"  Training samples: {len(train_dataset)}")
+print(f"  Test samples: {len(test_dataset)}")
+
+# Now train
+EPOCHS = 5
+pytorch_history = helper_utils.train_model(
+    pytorch_model,
+    train_loader,
+    test_loader,
+    pytorch_optimizer,
+    pytorch_criterion,
+    num_epochs=EPOCHS
+)
+
+helper_utils.compare_models(history, pytorch_history)
+
+def predict_sentiment(text, model, tokenizer, device):
+    """
+    Performs sentiment inference on a single string input.
+
+    Args:
+        text (str): The raw input text string to be analyzed.
+        model (nn.Module): The trained neural network model used for prediction.
+        tokenizer (object): The tokenizer instance used to encode the text.
+        device (str or torch.device): The computation hardware (e.g., 'cpu' or 'cuda').
+
+    Returns:
+        sentiment (str): A string label indicating the predicted class ("Positive" or "Negative").
+        confidence (float): The probability score associated with the predicted class.
+        probabilities (Tensor): The full probability distribution across all classes.
+    """
+    # Set the model to evaluation mode to disable layers like dropout
+    model.eval()
+    
+    # Transform the raw text into a numerical sequence of indices
+    encoded = tokenizer.encode(text, max_len=256)
+    # Convert the list of indices into a batch-oriented LongTensor on the target device
+    input_tensor = torch.LongTensor([encoded]).to(device)
+    
+    # Disable gradient calculation for efficient inference
+    with torch.no_grad():
+        # Pass the input tensor through the model to obtain raw output scores
+        output = model(input_tensor)
+        # Apply the softmax function to normalize outputs into a probability distribution
+        probabilities = torch.softmax(output, dim=1)
+        # Identify the class index with the highest score
+        prediction = torch.argmax(output, dim=1)
+    
+    # Extract the probability value corresponding to the predicted class
+    confidence = probabilities[0][prediction].item()
+    # Map the predicted numerical index to a human-readable sentiment label
+    sentiment = "Positive" if prediction.item() == 1 else "Negative"
+    
+    # Return the label, the confidence score, and the complete probability tensor
+    return sentiment, confidence, probabilities[0]
+
+# Test reviews
+test_reviews = [
+    "This movie was absolutely fantastic! I loved every minute of it.",
+    "Terrible film. Complete waste of time. I want my money back.",
+    "Not bad, but not great either. It was okay I guess.",
+    "One of the best films I've ever seen. Brilliant acting and amazing story!",
+    "Boring and predictable. I fell asleep halfway through."
+]
+
+print("="*60)
+print("TESTING BOTH MODELS WITH SAMPLE REVIEWS")
+print("="*60)
+
+for i, review in enumerate(test_reviews, 1):
+    print(f"\nReview {i}: \"{review[:50]}...\"" if len(review) > 50 else f"\nReview {i}: \"{review}\"")
+    print("-"*40)
+    
+    # Test with encoder from scratch
+    sentiment, confidence, probs = predict_sentiment(review, model, tokenizer, device)
+    print(f"Encoder from Scratch: {sentiment} (confidence: {confidence:.2%})")
+    print(f"  [Negative: {probs[0]:.3f}, Positive: {probs[1]:.3f}]")
+    
+    # Test with PyTorch implemented encoder
+    sentiment_pt, confidence_pt, probs_pt = predict_sentiment(review, pytorch_model, tokenizer, device)
+    print(f"PyTorch Implemented Encoder: {sentiment_pt} (confidence: {confidence_pt:.2%})")
+    print(f"  [Negative: {probs_pt[0]:.3f}, Positive: {probs_pt[1]:.3f}]")
+
