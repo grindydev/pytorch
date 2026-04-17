@@ -1,15 +1,28 @@
+"""
+Lesson 2 - Module 4: PyTorch Lightning Basics (lightning/main.py)
+=================================================================
+WHAT YOU'LL LEARN:
+  * What PyTorch Lightning is and why it simplifies training code
+  * LightningDataModule: clean data loading in one class
+  * LightningModule: model + training logic in one class
+  * Built-in training loop: no more manual epoch loops
+  * Profiling: measuring which operations are slowest
+  * Reducing model complexity to improve training speed
+
+KEY CONCEPT:
+  PyTorch Lightning removes boilerplate code. Instead of writing the same
+  training loop manually every time, you define:
+    - training_step():   What happens for one batch during training
+    - validation_step(): What happens for one batch during validation
+    - configure_optimizers(): Which optimizer to use
+
+  Lightning handles the rest: epoch loops, gradient zeroing, backprop,
+  device management, logging, checkpointing, etc.
+"""
+
 import sys
 import warnings
 
-# # Redirect stderr to a black hole to catch other potential messages
-# class BlackHole:
-#     def write(self, message):
-#         pass
-#     def flush(self):
-#         pass
-# sys.stderr = BlackHole()
-
-# Ignore Python-level UserWarnings
 warnings.filterwarnings("ignore", category=UserWarning)
 
 import lightning.pytorch as pl
@@ -26,344 +39,204 @@ from pathlib import Path
 import helper_utils
 
 torch.set_float32_matmul_precision('medium')
-warnings.filterwarnings("ignore", category=UserWarning)
+
+
+# ==================== PART 1: DATA MODULE ====================
+# KEY CONCEPT: LightningDataModule encapsulates ALL data logic in one class.
+#   - prepare_data(): Download data (called once, on 1 GPU)
+#   - setup(): Create dataset objects (called on each GPU)
+#   - train_dataloader() / val_dataloader(): Return DataLoaders
 
 class CIFAR10DataModule(pl.LightningDataModule):
-    """A LightningDataModule for the CIFAR10 dataset."""
+    """Encapsulates CIFAR-10 data loading logic."""
 
     def __init__(self, data_dir='./data', batch_size=128, num_workers=0):
-        """
-        Initializes the DataModule.
-
-        Args:
-            data_dir (str): Directory to store the data.
-            batch_size (int): Number of samples per batch.
-            num_workers (int): Number of subprocesses for data loading.
-        """
-        # Call the constructor of the parent class (LightningDataModule).
         super().__init__()
-        # Store the data directory path.
         self.data_dir = data_dir
-        # Store the batch size for the DataLoaders.
         self.batch_size = batch_size
-        # Store the number of worker processes for data loading.
         self.num_workers = num_workers
-        # Define a sequence of transformations to be applied to the images.
         self.transform = transforms.Compose([
             transforms.ToTensor(),
             transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))
         ])
 
     def prepare_data(self):
-        """Downloads the CIFAR10 dataset if not already present."""
-        
-        # Download the training split of CIFAR10.
+        """Download data if not present. Called ONCE on a single GPU."""
         datasets.CIFAR10(self.data_dir, train=True, download=True)
-        # Download the testing split of CIFAR10.
         datasets.CIFAR10(self.data_dir, train=False, download=True)
 
     def setup(self, stage=None):
-        """
-        Assigns train/val datasets for use in dataloaders.
-
-        Args:
-            stage (str, optional): The stage of training (e.g., 'fit', 'test').
-                               The Lightning Trainer requires this argument, but it is not
-                               utilized in this implementation as the setup logic is the
-                               same for all stages. Defaults to None.
-        """
-        
-        # Create the training dataset instance and apply the transformations.
+        """Create dataset objects. Called on each GPU."""
         self.cifar_train = datasets.CIFAR10(self.data_dir, train=True, transform=self.transform)
-        # Create the validation dataset instance (using the test set) and apply transformations.
         self.cifar_val = datasets.CIFAR10(self.data_dir, train=False, transform=self.transform)
-    
+
     def train_dataloader(self):
-        """Returns the DataLoader for the training set."""
-        # The DataLoader handles batching, shuffling, and parallel data loading.
-        return DataLoader(self.cifar_train, batch_size=self.batch_size, num_workers=self.num_workers, shuffle=True)
+        return DataLoader(self.cifar_train, batch_size=self.batch_size,
+                          num_workers=self.num_workers, shuffle=True)
 
     def val_dataloader(self):
-        """Returns the DataLoader for the validation set."""
-        # Shuffling is not necessary for the validation set.
-        return DataLoader(self.cifar_val, batch_size=self.batch_size, num_workers=self.num_workers)
+        return DataLoader(self.cifar_val, batch_size=self.batch_size,
+                          num_workers=self.num_workers)
 
+
+# ==================== PART 2: MODEL MODULE ====================
+# KEY CONCEPT: LightningModule replaces nn.Module for training.
+# It combines the model architecture with training/validation logic.
 
 class CIFAR10LightningModule(pl.LightningModule):
-    """A flexible LightningModule for CIFAR10 image classification."""
+    """
+    A CNN for CIFAR-10 using Lightning.
 
-    def __init__(self,
-                 learning_rate=1e-3,
-                 weight_decay=0.01,
-                 conv_channels=(256, 512, 1024),
-                 linear_features=2048,
+    KEY METHODS TO IMPLEMENT:
+      - forward():           The model's forward pass
+      - training_step():     Loss computation for one batch
+      - validation_step():   Metrics for one validation batch
+      - configure_optimizers(): Return the optimizer
+    """
+
+    def __init__(self, learning_rate=1e-3, weight_decay=0.01,
+                 conv_channels=(256, 512, 1024), linear_features=2048,
                  num_classes=10):
-        """
-        Initializes the LightningModule with configurable layer parameters.
-
-        Args:
-            learning_rate: The learning rate for the optimizer.
-            weight_decay: The weight decay (L2 penalty) for the optimizer.
-            conv_channels: A tuple specifying the output channels for each
-                           convolutional block.
-            linear_features: The number of features in the hidden fully
-                             connected layer.
-            num_classes: The number of output classes for the classification task.
-        """
-        # Call the constructor of the parent class.
         super().__init__()
-        # Save the hyperparameters passed to the constructor. This makes them
-        # accessible via `self.hparams` and logs them automatically.
+        # save_hyperparameters() stores all args in self.hparams
+        # and logs them automatically -- very convenient for tracking experiments
         self.save_hyperparameters()
-        
-        # Calculate the flattened size of the feature maps after the final
-        # pooling layer. This is needed to define the input size of the
-        # first fully connected layer.
+
+        # After 3 MaxPool layers: 32x32 -> 16x16 -> 8x8 -> 4x4
         flattened_size = self.hparams.conv_channels[-1] * 4 * 4
-        
-        # Define the model's architecture using a sequential container.
+
         self.model = nn.Sequential(
+            # 3 convolutional blocks
             nn.Conv2d(3, self.hparams.conv_channels[0], kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),
+            nn.ReLU(), nn.MaxPool2d(2, 2),
             nn.Conv2d(self.hparams.conv_channels[0], self.hparams.conv_channels[1], kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),
+            nn.ReLU(), nn.MaxPool2d(2, 2),
             nn.Conv2d(self.hparams.conv_channels[1], self.hparams.conv_channels[2], kernel_size=3, padding=1),
-            nn.ReLU(),
-            nn.MaxPool2d(2, 2),
+            nn.ReLU(), nn.MaxPool2d(2, 2),
+            # Classifier
             nn.Flatten(),
             nn.Linear(flattened_size, self.hparams.linear_features),
             nn.ReLU(),
             nn.Linear(self.hparams.linear_features, self.hparams.num_classes)
         )
-        
-        # Initialize the loss function.
+
         self.loss_fn = nn.CrossEntropyLoss()
-        
-        # Initialize metrics to track accuracy for training and validation.
         self.train_accuracy = Accuracy(task="multiclass", num_classes=self.hparams.num_classes)
         self.val_accuracy = Accuracy(task="multiclass", num_classes=self.hparams.num_classes)
 
     def forward(self, x):
-        """
-        Defines the forward pass of the model.
-
-        Args:
-            x: The input tensor containing a batch of images.
-
-        Returns:
-            The output tensor (logits) from the model.
-        """
-        # Pass the input through the sequential model.
         return self.model(x)
 
     def training_step(self, batch, batch_idx=None):
         """
-        Performs a single training step.
-    
-        Args:
-            batch (Any): The data batch from the dataloader.
-            batch_idx (int, optional): The index of the current batch. The Lightning Trainer
-                                     requires this argument, but it is not utilized in this
-                                     implementation. Defaults to None.
+        ONE training step: forward pass + loss computation.
+        Lightning handles zero_grad, backward, and optimizer.step automatically!
         """
-        # Unpack the batch into inputs (images) and labels.
         inputs, labels = batch
-        # Perform a forward pass to get the model's predictions (logits).
         outputs = self(inputs)
-        # Calculate the loss.
         loss = self.loss_fn(outputs, labels)
 
-        # Log the training loss at the end of each epoch.
+        # self.log() sends metrics to Lightning's logging system
         self.log("train_loss", loss, on_step=False, on_epoch=True)
-        # Update the training accuracy metric with the current batch's results.
         self.train_accuracy(outputs, labels)
-        # Log the training accuracy at the end of each epoch.
         self.log("train_accuracy", self.train_accuracy, on_step=False, on_epoch=True, prog_bar=True)
-        
-        # Return the loss to Lightning for backpropagation.
-        return loss
+
+        return loss  # Lightning uses this for backpropagation
 
     def validation_step(self, batch, batch_idx=None):
-        """
-        Performs a single validation step.
-    
-        Args:
-            batch (Any): The data batch from the dataloader.
-            batch_idx (int, optional): The index of the current batch. The Lightning Trainer
-                                     requires this argument, but it is not utilized in this
-                                     implementation. Defaults to None.
-        """
-        # Unpack the batch into inputs (images) and labels.
+        """ONE validation step: forward pass + metric computation."""
         inputs, labels = batch
-        # Perform a forward pass to get the model's predictions (logits).
         outputs = self(inputs)
-        # Calculate the loss.
         loss = self.loss_fn(outputs, labels)
 
-        # Log the validation loss at the end of each epoch.
         self.log("val_loss", loss, on_step=False, on_epoch=True, prog_bar=True)
-        # Update the validation accuracy metric with the current batch's results.
         self.val_accuracy(outputs, labels)
-        # Log the validation accuracy at the end of each epoch.
         self.log("val_accuracy", self.val_accuracy, on_step=False, on_epoch=True, prog_bar=True)
 
     def configure_optimizers(self):
-        """
-        Configures and returns the model's optimizer.
-
-        Returns:
-            An instance of the optimizer.
-        """
-        # Create and return the AdamW optimizer.
-        return optim.AdamW(self.parameters(), lr=self.hparams.learning_rate, weight_decay=self.hparams.weight_decay)
+        """Return the optimizer. AdamW adds decoupled weight decay to Adam."""
+        return optim.AdamW(self.parameters(),
+                           lr=self.hparams.learning_rate,
+                           weight_decay=self.hparams.weight_decay)
 
 
-
+# ==================== PART 3: TRAINING (BASELINE) ====================
 data_dir = Path.cwd() / 'data/cifar10'
+dm_loader = CIFAR10DataModule(data_dir=data_dir, num_workers=0)
 
-# Instantiate the DataModule (2 workers).
-dm_loader = CIFAR10DataModule(data_dir=data_dir,num_workers=0)
-
-# Create an instance of the LightningModule.
 model_baseline = CIFAR10LightningModule()
-
 baseline_results = helper_utils.run_full_training(model_baseline, dm_loader)
 
-print("\nTraining Complete!\n")
-print("Final Training Metrics:")
+print("\nTraining Complete!")
+print(f"  Training Accuracy:   {baseline_results['train_accuracy']}%")
+print(f"  Validation Accuracy: {baseline_results['val_accuracy']}%")
 
-print(f"\tTraining Accuracy:    {baseline_results['train_accuracy']}%")
-print(f"\tValidation Accuracy:  {baseline_results['val_accuracy']}%")
+
+# ==================== PART 4: PROFILING ====================
+# KEY CONCEPT: Profiling measures how much time each operation takes.
+# This helps you find bottlenecks and optimize your model.
 
 log_dir = "./profiler_output"
 
-# Configure the PyTorch Profiler
 profiler = PyTorchProfiler(
-    # Set the directory to save the profiler report
     dirpath=log_dir,
-    # Specify the filename for the report
     filename="profile_report",
-    # Define the profiling schedule (wait -> warmup -> active)
-    # Total 14 steps
+    # Schedule: skip first 2 steps, warm up for 2, then profile for 10
     schedule=schedule(wait=2, warmup=2, active=10, repeat=1),
-    # Enable memory usage profiling
     profile_memory=True
 )
 
-# Initialize the Trainer
+# Trainer is Lightning's main class -- it orchestrates everything
 trainer = pl.Trainer(
-    # Attach the configured profiler
     profiler=profiler,
-    # Limit training to 14 steps to match the profiler's schedule
     max_steps=14,
-    # Automatically select the hardware accelerator (e.g., GPU, CPU)
-    accelerator="auto",
-    # Use a single device for training
+    accelerator="auto",   # Automatically pick GPU/CPU
     devices=1,
-    # Disable the default logger for a cleaner output
     logger=False,
-    # Disable the model summary for the same reason
     enable_model_summary=False,
-    # Disable automatic checkpointing
     enable_checkpointing=False
 )
 
-# Start the training and profiling run.
 trainer.fit(model_baseline, dm_loader)
+print("\nProfiling Complete!")
 
-# Print a confirmation message when done.
-print("\nProfiling Complete!\n")
-
-# Display the top 10 most time-consuming operations from the profiler's report
+# Show the top 10 slowest operations
 helper_utils.display_profiler_logs(profiler, head=10)
-
-# Display a focused summary of the profiler report for the baseline run.
-# This filters for the overall time and the top 4 computational operations.
 helper_utils.display_model_computation_logs(profiler)
 
 
+# ==================== PART 5: EFFICIENT MODEL ====================
+# KEY CONCEPT: The baseline model is OVER-SIZED for CIFAR-10.
+# Fewer channels = less computation = faster training (often with similar accuracy).
 
-try:
-    # Configure the PyTorch Profiler for the efficient model run
-    profiler_efficient = PyTorchProfiler( ### Add your code here
-        
-        # Set the directory to save the profiler report
-        dirpath=log_dir, ### Add your code here
-        
-        # Specify a new filename for the report
-        filename='light_exercise', ### Add your code here
-        
-        # Define the profiling schedule (wait -> warmup -> active)
-        schedule=schedule(wait=2, warmup=2, active=10, repeat=1), ### Add your code here
-        
-        # Enable memory usage profiling
-        profile_memory=True ### Add your code here
-    )
+# Configure profiler for the efficient model
+profiler_efficient = PyTorchProfiler(
+    dirpath=log_dir,
+    filename='light_exercise',
+    schedule=schedule(wait=2, warmup=2, active=10, repeat=1),
+    profile_memory=True
+)
 
-    print("\033[92mPyTorchProfiler configured successfully!")
+trainer_efficient = pl.Trainer(
+    profiler=profiler_efficient,
+    max_steps=14,
+    accelerator="auto",
+    devices=1,
+    logger=False,
+    enable_model_summary=False,
+    enable_checkpointing=False
+)
 
-except Exception as e:
-    print("\033[91mSomething went wrong, try again!")
-    raise e
-
-
-
-try:
-    # Initialize the Trainer
-    trainer_efficient = pl.Trainer( ### Add your code here
-        
-        # Attach the configured profiler
-        profiler=profiler_efficient, ### Add your code here
-        
-        # Limit training to 14 steps to match the profiler's schedule
-        max_steps=14, ### Add your code here
-        
-        # Automatically select the hardware accelerator (e.g., GPU, CPU)
-        accelerator="auto", ### Add your code here
-        
-        # Use a single device for training
-        devices=1, ### Add your code here
-        
-        # Disable the default logger for a cleaner output
-        logger=False, ### Add your code here
-        
-        # Disable the model summary for the same reason
-        enable_model_summary=False, ### Add your code here
-
-        # Disable automatic checkpointing
-        enable_checkpointing=False ### Add your code here
-    )
-
-    print("\033[92mTrainer configured successfully!")
-
-except Exception as e:
-    print("\033[91mSomething went wrong, try again!")
-    raise e
-
-
-# Create a new instance of the model with a much simpler architecture.
+# Much smaller model: 256/512/1024 channels -> 32/64/128
 model_efficient = CIFAR10LightningModule(
     conv_channels=(32, 64, 128),
     linear_features=512
 )
 
-try:
-    # Start the second diagnostic run with the new, streamlined model.
-    trainer_efficient.fit(model_efficient, dm_loader) ### Add your code here
-    
-    print("\nProfiling Complete!\n")
-    
-except Exception as e:
-    print("\033[91mSomething went wrong, try again!")
-    raise e
+trainer_efficient.fit(model_efficient, dm_loader)
+print("\nEfficient Profiling Complete!")
 
-
-
-# Display the top 10 most time-consuming operations from the profiler_efficient's report
 helper_utils.display_profiler_logs(profiler_efficient, head=10)
 
-
-# Generate the comparison report.
+# Compare baseline vs. efficient model
 helper_utils.display_comparison_report(profiler, profiler_efficient)

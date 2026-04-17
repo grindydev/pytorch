@@ -1,18 +1,34 @@
+"""
+Lesson 2 - Module 1: Learning Rate Schedulers (scheduler/main.py)
+=================================================================
+WHAT YOU'LL LEARN:
+  * Why a fixed learning rate is suboptimal
+  * Three popular LR schedulers:
+    - StepLR:          Reduce LR by a factor every N epochs
+    - CosineAnnealingLR: Smoothly oscillate LR following a cosine curve
+    - ReduceLROnPlateau: Reduce LR when validation metric stops improving
+  * How schedulers help escape local minima and fine-tune convergence
+
+KEY CONCEPT:
+  Think of learning rate like step size when hiking down a mountain:
+  - Large steps (high LR):  Fast progress initially, but you overshoot the bottom
+  - Small steps (low LR):   Precise, but painfully slow
+  - SCHEDULER:              Start with large steps, gradually take smaller ones
+                           as you get closer to the bottom (minimum loss)
+"""
+
 import sys
 import time
 import warnings
 
-# Redirect stderr to a black hole to catch other potential messages
+# Suppress noisy warnings for cleaner output
 class BlackHole:
     def write(self, message):
         pass
     def flush(self):
         pass
 sys.stderr = BlackHole()
-
-# Ignore Python-level UserWarnings
 warnings.filterwarnings("ignore", category=UserWarning)
-
 
 import torch
 import torch.nn as nn
@@ -22,104 +38,57 @@ import torch.optim as optim
 import helper_utils
 helper_utils.set_seed(42)
 
-# if(torch.cuda.is_available()):
-#     device = torch.device('cuda')
-# elif (torch.backends.mps.is_available()):
-#     device = torch.device('mps')
-# else:
-#     device = torch.device('cpu')
-
+# Device selection (CPU for stability in this exercise)
 if torch.cuda.is_available():
     device = torch.device('cuda')
 else:
-    device = torch.device('cpu')  # Explicitly use CPU, skip MPS
-    print("MPS available but skipped due to known training instability. Using CPU instead.")
+    device = torch.device('cpu')
+print(f"Device using: {device}")
 
 
-print(f"Device using: ", device)
-
+# ==================== MODEL DEFINITION ====================
 class SimpleCNN(nn.Module):
-    """A simple Convolutional Neural Network (CNN) architecture.
-
-    This class defines a two-layer CNN with max pooling, dropout, and
-    fully connected layers, suitable for basic image classification tasks.
-    """
+    """Same 2-block CNN from the learning_rate exercise."""
     def __init__(self):
-        """Initializes the layers of the neural network."""
-        # Initialize the parent nn.Module class
         super(SimpleCNN, self).__init__()
-        # First convolutional layer (3 input channels, 16 output channels, 3x3 kernel)
         self.conv1 = nn.Conv2d(3, 16, kernel_size=3, padding=1)
-        # Second convolutional layer (16 input channels, 32 output channels, 3x3 kernel)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
-        # Max pooling layer with a 2x2 window and stride of 2
         self.pool = nn.MaxPool2d(2, 2)
-        # First fully connected (linear) layer
         self.fc1 = nn.Linear(32 * 8 * 8, 64)
-        # Second fully connected (linear) layer, serving as the output layer
         self.fc2 = nn.Linear(64, 10)
-        # Dropout layer for regularization
         self.dropout = nn.Dropout(p=0.4)
 
     def forward(self, x):
-        """Defines the forward pass of the network.
-
-        Args:
-            x (torch.Tensor): The input tensor of shape (batch_size, 3, height, width).
-
-        Returns:
-            torch.Tensor: The output logits from the network.
-        """
-        # Apply first convolution, ReLU activation, and max pooling
         x = self.pool(F.relu(self.conv1(x)))
-        # Apply second convolution, ReLU activation, and max pooling
         x = self.pool(F.relu(self.conv2(x)))
-        # Flatten the feature maps for the fully connected layers
         x = x.view(-1, 32 * 8 * 8)
-        # Apply the first fully connected layer with ReLU activation
         x = F.relu(self.fc1(x))
-        # Apply dropout for regularization
         x = self.dropout(x)
-        # Apply the final output layer
         x = self.fc2(x)
         return x
 
 
+# ==================== TRAINING WITH SCHEDULER ====================
 def train_and_evaluate_with_scheduler(model, optimizer, scheduler, device, n_epochs=25, batch_size=128):
-    """Trains and evaluates a model using a learning rate scheduler.
-
-    Args:
-        model: The neural network model to be trained.
-        optimizer: The optimization algorithm.
-        scheduler: The learning rate scheduler.
-        device: The computing device ('cuda' or 'cpu') to run the training on.
-        n_epochs: The total number of training epochs.
-        batch_size: The number of samples per batch in the data loaders.
-
-    Returns:
-        A dictionary containing the training and validation history
-        (loss, accuracy, and learning rate) for each epoch.
     """
-    # Set the random seed for reproducibility
+    Trains a model with a learning rate scheduler.
+
+    KEY DETAIL: After each epoch, we call scheduler.step() to update the LR.
+    The scheduler modifies the optimizer's learning rate in-place.
+
+    Returns: Dictionary with train/val loss, accuracy, and learning rate history.
+    """
     helper_utils.set_seed(10)
 
-    # Define the loss function
     loss_fn = nn.CrossEntropyLoss()
-    # Prepare the training and validation data loaders
-    train_loader, val_loader = helper_utils.get_dataset_dataloaders(
-        batch_size=batch_size
-    )
+    train_loader, val_loader = helper_utils.get_dataset_dataloaders(batch_size=batch_size)
 
-    # Initialize a dictionary to store training and validation history
     history = {
-        "train_loss": [],
-        "train_acc": [],
-        "val_loss": [],
-        "val_acc": [],
-        'lr': [],
+        "train_loss": [], "train_acc": [],
+        "val_loss": [], "val_acc": [],
+        "lr": [],
     }
 
-    # Initialize the progress bar for monitoring training
     pbar = helper_utils.NestedProgressBar(
         total_epochs=n_epochs,
         total_batches=len(train_loader),
@@ -127,94 +96,108 @@ def train_and_evaluate_with_scheduler(model, optimizer, scheduler, device, n_epo
         mode="train",
     )
 
-    # Loop through the specified number of epochs
     for epoch in range(n_epochs):
+        pbar.update_epoch(epoch + 1)
 
-        # Update the progress bar for the current epoch
-        pbar.update_epoch(epoch+1)
+        # --- Train ---
+        train_loss, train_acc = helper_utils.train_epoch(
+            model, train_loader, optimizer, loss_fn, device, pbar
+        )
+        # --- Validate ---
+        val_loss, val_acc = helper_utils.evaluate_epoch(
+            model, val_loader, loss_fn, device
+        )
 
-        # Train the model for one epoch
-        train_loss, train_acc = helper_utils.train_epoch(model, train_loader, optimizer, loss_fn, device, pbar)
-        # Evaluate the model on the validation set
-        val_loss, val_acc = helper_utils.evaluate_epoch(model, val_loader, loss_fn, device)
-        
-        # Retrieve the current learning rate from the scheduler
+        # Get the current learning rate BEFORE updating
         current_lr = scheduler.get_last_lr()[0]
 
-        # Update the learning rate based on the scheduler type
+        # --- UPDATE LEARNING RATE ---
+        # KEY CONCEPT: Different schedulers need different step() calls:
         if isinstance(scheduler, optim.lr_scheduler.ReduceLROnPlateau):
-            # For schedulers that monitor a metric, pass the metric to the step function
+            # ReduceLROnPlateau needs the metric to monitor
+            # If val_acc doesn't improve for `patience` epochs, reduce LR
             scheduler.step(val_acc)
         else:
-            # For other schedulers, call the step function without arguments
+            # StepLR and CosineAnnealingLR just need step()
             scheduler.step()
-        
-        # Log the training metrics for the current epoch, including the learning rate
-        pbar.maybe_log_epoch(epoch=epoch+1, message=f"At epoch {epoch+1}: Training loss: {train_loss:.4f}, Training accuracy: {train_acc:.4f}, LR: {current_lr:.6f}")
 
-        # Log the validation metrics for the current epoch, including the learning rate
-        pbar.maybe_log_epoch(epoch=epoch+1, message=f"At epoch {epoch+1}: Validation loss: {val_loss:.4f}, Validation accuracy: {val_acc:.4f}")
+        pbar.maybe_log_epoch(
+            epoch=epoch+1,
+            message=f"At epoch {epoch+1}: Train loss: {train_loss:.4f}, "
+                    f"Train acc: {train_acc:.4f}, LR: {current_lr:.6f}"
+        )
+        pbar.maybe_log_epoch(
+            epoch=epoch+1,
+            message=f"At epoch {epoch+1}: Val loss: {val_loss:.4f}, Val acc: {val_acc:.4f}"
+        )
 
-        # Append the metrics for the current epoch to the history dictionary
         history["train_loss"].append(train_loss)
         history["train_acc"].append(train_acc)
         history["val_loss"].append(val_loss)
         history["val_acc"].append(val_acc)
-        history['lr'].append(current_lr)
+        history["lr"].append(current_lr)
 
-    # Close the progress bar upon completion of training
     pbar.close('Training complete!')
-    # Return the collected training and validation history
     return history
 
-# Different learning rates to be analyzed
-learning_rates = [0.0002, 0.001, 0.005] # Small, medium, and large learning rates
 
-training_curves = []
+# ==================== COMPARING THREE SCHEDULERS ====================
 n_epochs = 25
 batch_size = 128
+initial_lr = 0.005  # Start with a relatively high LR
 
-helper_utils.set_seed(42)
-
-# StepLR
+# --- 1. StepLR ---
+# KEY CONCEPT: Reduce LR by gamma every step_size epochs.
+# Example: LR starts at 0.005
+#   Epochs 1-10:  LR = 0.005
+#   Epochs 11-20: LR = 0.005 * 0.2 = 0.001  (reduced by 80%)
+#   Epochs 21-25: LR = 0.001 * 0.2 = 0.0002
 print(f"------Training with StepLR------")
 model = SimpleCNN().to(device)
-optimizer = optim.Adam(model.parameters(), lr=0.005)
-
-scheduler_step = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.2) # reduce the learning rate by 20% it's prior value
+optimizer = optim.Adam(model.parameters(), lr=initial_lr)
+scheduler_step = optim.lr_scheduler.StepLR(optimizer, step_size=10, gamma=0.2)
 
 history_LR = train_and_evaluate_with_scheduler(
     model, optimizer, scheduler_step, device, n_epochs=n_epochs, batch_size=batch_size
 )
 
+# --- 2. CosineAnnealingLR ---
+# KEY CONCEPT: Smoothly decrease LR following a cosine curve from initial_lr
+# down to eta_min, then back up. This creates a smooth, gradual reduction.
+# T_max = period (number of epochs for one full cosine cycle)
 print(f"------Training with CosineAnnealingLR------")
-# CosineAnnealingLR
 model = SimpleCNN().to(device)
-optimizer = optim.Adam(model.parameters(), lr=0.005)
-
-scheduler_cosine = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=n_epochs, eta_min = 0.0002)
+optimizer = optim.Adam(model.parameters(), lr=initial_lr)
+scheduler_cosine = optim.lr_scheduler.CosineAnnealingLR(
+    optimizer, T_max=n_epochs, eta_min=0.0002
+)
 
 history_cosine = train_and_evaluate_with_scheduler(
     model, optimizer, scheduler_cosine, device, n_epochs=n_epochs, batch_size=batch_size
 )
 
+# --- 3. ReduceLROnPlateau ---
+# KEY CONCEPT: "Adaptive" -- only reduce LR when progress stalls.
+# If validation accuracy doesn't improve for `patience` epochs, reduce LR by `factor`.
+# This is the most "intelligent" scheduler -- it reacts to actual training progress.
 print(f"------Training with ReduceLROnPlateau------")
-# ReduceLROnPlateau
 model = SimpleCNN().to(device)
-optimizer = optim.Adam(model.parameters(), lr=0.005)
-
-scheduler_plateau = optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.2, patience=3)
+optimizer = optim.Adam(model.parameters(), lr=initial_lr)
+scheduler_plateau = optim.lr_scheduler.ReduceLROnPlateau(
+    optimizer, mode='max',   # 'max' because we monitor accuracy (higher is better)
+    factor=0.2,               # Reduce LR to 20% of current value
+    patience=3                # Wait 3 epochs with no improvement before reducing
+)
 
 history_plateau = train_and_evaluate_with_scheduler(
     model, optimizer, scheduler_plateau, device, n_epochs=n_epochs, batch_size=batch_size
 )
 
-print("-"*45)
-labels = [ 'StepLR', 'CosineAnnealingLR', 'ReducedLRonPlateau']
+
+# ==================== VISUALIZE COMPARISON ====================
+labels = ['StepLR', 'CosineAnnealingLR', 'ReducedLRonPlateau']
 colors = ['green', 'blue', 'purple']
+training_curves_new = [history_LR, history_cosine, history_plateau]
 
-training_curves_new = [ history_LR, history_cosine, history_plateau]
-
-# helper_utils.plot_learning_curves(colors, labels, training_curves_new)
-
+# Plot how learning rate changes over epochs for each scheduler
 helper_utils.plot_learning_rates_curves(training_curves_new, colors, labels)

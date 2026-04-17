@@ -1,3 +1,23 @@
+"""
+Lesson 2 - Module 1: Learning Rate & Evaluation Metrics (learning_rate/main.py)
+================================================================================
+WHAT YOU'LL LEARN:
+  * How learning rate affects training: too low = slow, too high = unstable
+  * Evaluation metrics beyond accuracy: Precision, Recall, F1 Score
+  * When accuracy is misleading: imbalanced datasets
+  * Using torchmetrics for clean metric computation
+  * How batch size interacts with learning rate on imbalanced data
+
+KEY CONCEPT:
+  Learning rate is THE most important hyperparameter. It controls how big
+  each weight update step is. Finding the right learning rate can make or
+  break your model's performance.
+
+  ACCURACY is not enough! For imbalanced datasets (e.g., 99 cats, 1 dog),
+  a model that always predicts "cat" has 99% accuracy but is useless.
+  Precision, Recall, and F1 give a much better picture.
+"""
+
 import pandas as pd
 import torch
 import torch.nn as nn
@@ -9,356 +29,244 @@ import helper_utils
 from pathlib import Path
 helper_utils.set_seed(42)
 
-# Check device
+# Device selection
 if torch.cuda.is_available():
     device = torch.device('cuda')
 elif torch.backends.mps.is_available():
     device = torch.device('mps')
 else:
     device = torch.device('cpu')
-
 print(f"Using device: {device}")
 
 data_path = Path.cwd() / "data/rich_cifar10"
 data_path_imbalanced = Path.cwd() / "data/cifar10_3class_imbalanced"
 
-class SimpleCNN(nn.Module):
-    """A simple Convolutional Neural Network (CNN) architecture.
 
-    This class defines a two-layer CNN with max pooling, dropout, and
-    fully connected layers, suitable for basic image classification tasks.
+# ==================== STEP 1: DEFINE THE CNN ====================
+class SimpleCNN(nn.Module):
+    """
+    A 2-block CNN for CIFAR-10 classification.
+
+    Architecture:
+      Input [3, 32, 32]
+        -> Conv(3->16) -> ReLU -> MaxPool -> [16, 16, 16]
+        -> Conv(16->32) -> ReLU -> MaxPool -> [32, 8, 8]
+        -> Flatten -> FC(2048, 64) -> ReLU -> Dropout -> FC(64, 10)
     """
     def __init__(self):
-        """Initializes the layers of the neural network."""
-        # Initialize the parent nn.Module class
         super(SimpleCNN, self).__init__()
-        # First convolutional layer (3 input channels, 16 output channels, 3x3 kernel)
         self.conv1 = nn.Conv2d(3, 16, kernel_size=3, padding=1)
-        # Second convolutional layer (16 input channels, 32 output channels, 3x3 kernel)
         self.conv2 = nn.Conv2d(16, 32, kernel_size=3, padding=1)
-        # Max pooling layer with a 2x2 window and stride of 2
         self.pool = nn.MaxPool2d(2, 2)
-        # First fully connected (linear) layer
         self.fc1 = nn.Linear(32 * 8 * 8, 64)
-        # Second fully connected (linear) layer, serving as the output layer
         self.fc2 = nn.Linear(64, 10)
-        # Dropout layer for regularization
         self.dropout = nn.Dropout(p=0.4)
-         
+
     def forward(self, x):
-        """Defines the forward pass of the network.
-
-        Args:
-            x (torch.Tensor): The input tensor of shape (batch_size, 3, height, width).
-
-        Returns:
-            torch.Tensor: The output logits from the network.
-        """
-        # Apply first convolution, ReLU activation, and max pooling
-        x = self.pool(F.relu(self.conv1(x)))
-        # Apply second convolution, ReLU activation, and max pooling
-        x = self.pool(F.relu(self.conv2(x)))
-        # Flatten the feature maps for the fully connected layers
-        x = x.view(-1, 32 * 8 * 8)
-        # Apply the first fully connected layer with ReLU activation
+        x = self.pool(F.relu(self.conv1(x)))   # [batch, 16, 16, 16]
+        x = self.pool(F.relu(self.conv2(x)))   # [batch, 32, 8, 8]
+        x = x.view(-1, 32 * 8 * 8)             # Flatten: [batch, 2048]
         x = F.relu(self.fc1(x))
-        # Apply dropout for regularization
         x = self.dropout(x)
-        # Apply the final output layer
         x = self.fc2(x)
         return x
 
 
+# ==================== STEP 2: BASELINE ACCURACY FUNCTION ====================
 def evaluate_accuracy(model, val_loader, device):
-    """Calculates the accuracy of a model on a given dataset.
-
-    Args:
-        model (nn.Module): The PyTorch model to be evaluated.
-        val_loader (DataLoader): The DataLoader containing the validation or test data.
-        device: The device (e.g., 'cuda' or 'cpu') to perform the evaluation on.
-
-    Returns:
-        float: The computed accuracy of the model on the dataset.
-    """
-    # Set the model to evaluation mode
+    """Simple accuracy: correct predictions / total predictions."""
     model.eval()
-    # Initialize counters for accuracy calculation
     total_correct = 0
     total_samples = 0
 
-    # Disable gradient computation for evaluation
     with torch.no_grad():
-        # Iterate over the data in the provided loader
         for inputs, labels in val_loader:
-            # Move input and label tensors to the specified device
             inputs, labels = inputs.to(device), labels.to(device)
-            # Perform a forward pass to get model outputs
             outputs = model(inputs)
-
-            # Get the predicted class by finding the index of the maximum logit
-            _, predicted = outputs.max(1)
-            # Update the count of correctly classified samples
+            _, predicted = outputs.max(1)  # Class with highest score
             total_correct += (predicted == labels).sum().item()
-            # Update the total number of samples processed
             total_samples += labels.size(0)
 
-    # Calculate the final accuracy
-    accuracy = total_correct / total_samples
-    # Return the computed accuracy
-    return accuracy
+    return total_correct / total_samples
 
+
+# ==================== STEP 3: TEST DIFFERENT LEARNING RATES ====================
+# KEY CONCEPT: Learning rate controls the step size in gradient descent.
+#   Too LOW (1e-5):  Model barely learns -- loss decreases very slowly
+#   Too HIGH (0.1):  Model overshoots minima -- loss oscillates or diverges
+#   JUST RIGHT (1e-3): Model converges quickly and stably
 
 def train_and_evaluate(learning_rate, device, n_epochs=25, batch_size=128):
-    """Trains and evaluates a model for a specific learning rate and configuration.
-
-    This function orchestrates the entire workflow: it sets a random seed,
-    initializes the model, optimizer, and dataloaders, trains the model,
-    and finally evaluates its accuracy on a validation set.
-
-    Args:
-        learning_rate (float): The learning rate to use for the optimizer.
-        device: The device (e.g., 'cuda' or 'cpu') for training and evaluation.
-        n_epochs (int, optional): The number of epochs for training. Defaults to 25.
-        batch_size (int, optional): The batch size for the dataloaders. Defaults to 128.
-
-    Returns:
-        float: The final validation accuracy of the trained model.
-    """
-    # Set the random seed for reproducibility
+    """Train a model with a specific learning rate and return validation accuracy."""
     helper_utils.set_seed(42)
 
-    # Initialize the CNN model and move it to the specified device
     model = SimpleCNN().to(device)
-
-    # Define the loss function
     loss_fcn = nn.CrossEntropyLoss()
-
-    # Define the optimizer with the given learning rate
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-    # Prepare the training and validation dataloaders
-    train_dataloader, val_dataloader = helper_utils.get_dataset_dataloaders(batch_size=batch_size, data_path=data_path, data_path_imbalanced=data_path_imbalanced)
-
-    # Call the main training loop to train the model
-    helper_utils.train_model(model=model, optimizer=optimizer, loss_fcn=loss_fcn, train_dataloader=train_dataloader, device=device, n_epochs=n_epochs) 
-
-    # Evaluate the trained model's accuracy on the validation set
-    accuracy = evaluate_accuracy(model=model, val_loader=val_dataloader, device=device)
-
-    # Print the final results for this configuration
-    print(
-        f"Learning Rate: {learning_rate}, Accuracy: {accuracy:.4f}"
+    train_dataloader, val_dataloader = helper_utils.get_dataset_dataloaders(
+        batch_size=batch_size, data_path=data_path, data_path_imbalanced=data_path_imbalanced
     )
-    # Return the computed accuracy
+
+    helper_utils.train_model(
+        model=model, optimizer=optimizer, loss_fcn=loss_fcn,
+        train_dataloader=train_dataloader, device=device, n_epochs=n_epochs
+    )
+
+    accuracy = evaluate_accuracy(model=model, val_loader=val_dataloader, device=device)
+    print(f"Learning Rate: {learning_rate}, Accuracy: {accuracy:.4f}")
     return accuracy
 
 
-learning_rates = [0.00001, 0.0001, 0.001, 0.01, 0.1] # low to high
-accuracies = []
+# Test a range of learning rates from very small to very large
+learning_rates = [0.00001, 0.0001, 0.001, 0.01, 0.1]
 
+accuracies = []
 for lr in learning_rates:
     acc = train_and_evaluate(learning_rate=lr, device=device)
     accuracies.append(acc)
 
-
+# Plot: accuracy vs. learning rate (you'll see a "sweet spot" curve)
 helper_utils.plot_results(learning_rates, accuracies)
 
 
+# ==================== STEP 4: BEYOND ACCURACY -- PRECISION, RECALL, F1 ====================
+# KEY CONCEPT: Why accuracy is not enough:
+#
+#   PRECISION: Of all samples predicted as class X, how many were actually X?
+#              = TP / (TP + FP)  -- "How trustworthy are positive predictions?"
+#
+#   RECALL:    Of all actual class X samples, how many did we find?
+#              = TP / (TP + FN)  -- "How complete are our predictions?"
+#
+#   F1 SCORE:  Harmonic mean of precision and recall (balances both)
+#              = 2 * (precision * recall) / (precision + recall)
+#
+#   MACRO average: Compute metric for each class independently, then average.
+#                  Treats all classes equally, regardless of class size.
 
 def evaluate_metrics(model, val_dataloader, device, num_classes=10):
-    """Evaluates the model on a given dataset using multiple metrics.
-
-    Args:
-        model (torch.nn.Module): The PyTorch model to be evaluated.
-        val_dataloader (DataLoader): The DataLoader containing the validation data.
-        device (torch.device): The device (e.g., 'cuda' or 'cpu') to run the evaluation on.
-        num_classes (int, optional): The number of classes in the dataset. Defaults to 10.
-
-    Returns:
-        tuple: A tuple containing the computed accuracy, precision, recall, and F1 score.
     """
-    # Set the model to evaluation mode
+    Evaluates model using Accuracy, Precision, Recall, and F1 Score.
+    Uses the torchmetrics library for clean, batch-wise metric computation.
+    """
     model.eval()
-    
-    # Initialize accuracy metric
+
+    # Initialize metrics (macro average: each class weighted equally)
     accuracy_metric = torchmetrics.Accuracy(
         task="multiclass", num_classes=num_classes, average="macro"
     ).to(device)
-    
-    ### START CODE HERE ###
-    
-    # Initialize precision metric  using `torchmetrics.Precision`
+
     precision_metric = torchmetrics.Precision(
         task="multiclass", average='macro', num_classes=num_classes
     ).to(device)
-    
-    # Initialize recall metric using `torchmetrics.Recall`
+
     recall_metric = torchmetrics.Recall(
         task="multiclass", average='macro', num_classes=num_classes
     ).to(device)
-    
-    # Initialize F1 score metric using `torchmetrics.F1Score`
-    f1_metric = torchmetrics.F1Score(task="multiclass", num_classes=num_classes).to(device)
-    
-    ### END CODE HERE ###
 
-    # Disable gradient computation during evaluation
+    f1_metric = torchmetrics.F1Score(
+        task="multiclass", num_classes=num_classes
+    ).to(device)
+
     with torch.no_grad():
-        # Iterate over the validation dataloader
         for inputs, labels in val_dataloader:
-            # Move inputs and labels to the specified device
             inputs, labels = inputs.to(device), labels.to(device)
-            # Get model predictions
             outputs = model(inputs)
-            # Get the predicted class by finding the index of the maximum logit
             _, predicted = torch.max(outputs, 1)
 
-            # Update metrics with the predictions and true labels for the current batch
+            # Update each metric with this batch's predictions
+            # torchmetrics accumulates results internally
             accuracy_metric.update(predicted, labels)
-            
-    ### START CODE HERE ###
-            
-            # Update `precision_metric` using `.update` method 
             precision_metric.update(predicted, labels)
-            
-            # Update `recall_metric` using `.update` method
             recall_metric.update(predicted, labels)
-            
-            # Update `f1_metric` using `.update` method
             f1_metric.update(predicted, labels)
-             
-    # Compute the final metrics over the entire dataset
+
+    # .compute() returns the final metric over all batches
     accuracy = accuracy_metric.compute().item()
-    
-    # Compute precision using `.compute` method and get the value with `.item()`
     precision = precision_metric.compute().item()
-    
-    # Compute recall using `.compute` method and get the value with `.item()`
     recall = recall_metric.compute().item()
-    
-    # Compute F1 score using `.compute` method and get the value with `.item()`
     f1 = f1_metric.compute().item()
-    
-    ### END CODE HERE ###
 
     return accuracy, precision, recall, f1
 
 
-# CHECK YOUR IMPLEMENTATION
-# model
+# Quick test with an untrained model
 model = SimpleCNN().to(device)
+train_dataloader, val_dataloader = helper_utils.get_dataset_dataloaders(
+    batch_size=128, data_path=data_path, data_path_imbalanced=data_path_imbalanced
+)
 
-# dataloaders
-train_dataloader, val_dataloader = helper_utils.get_dataset_dataloaders(batch_size=128, data_path=data_path, data_path_imbalanced=data_path_imbalanced)
+accuracy, precision, recall, f1 = evaluate_metrics(
+    model=model, val_dataloader=val_dataloader, device=device
+)
+print(f"Accuracy: {accuracy:.4f}, Precision: {precision:.4f}, "
+      f"Recall: {recall:.4f}, F1 Score: {f1:.4f}")
 
-accuracy, precision, recall, f1 = evaluate_metrics(model=model, val_dataloader=val_dataloader, device=device)
 
-print(f"Accuracy: {accuracy:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1 Score: {f1:.4f}")
-
-
+# ==================== STEP 5: METRICS VS. LEARNING RATE ====================
 def train_and_evaluate_metrics(learning_rate, device, n_epochs=25, batch_size=128, imbalanced=False):
-    """Trains and evaluates a model, returning a comprehensive set of metrics.
-
-    This function orchestrates the end-to-end machine learning pipeline for a
-    given configuration. It sets a random seed, initializes the model and
-    related components, loads data, runs the training loop, and evaluates
-    the model's performance using accuracy, precision, recall, and F1-score.
-
-    Args:
-        learning_rate (float): The learning rate for the optimizer.
-        device: The device (e.g., 'cuda' or 'cpu') for training and evaluation.
-        n_epochs (int, optional): The number of training epochs. Defaults to 25.
-        batch_size (int, optional): The batch size for dataloaders. Defaults to 128.
-        imbalanced (bool, optional): A flag to use an imbalanced dataset.
-                                     Defaults to False.
-
-    Returns:
-        tuple: A tuple containing the final validation accuracy, precision,
-               recall, and F1-score.
-    """
-    # Set the random seed for reproducibility
+    """Train and evaluate, returning accuracy, precision, recall, and F1."""
     helper_utils.set_seed(42)
 
-    # Initialize the CNN model and move it to the specified device
     model = SimpleCNN().to(device)
-
-    # Define the loss function for training
     loss_fcn = nn.CrossEntropyLoss()
-
-    # Define the optimizer with the specified learning rate
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-    # Prepare the training and validation dataloaders
-    train_dataloader, val_dataloader = helper_utils.get_dataset_dataloaders(batch_size=batch_size, imbalanced=imbalanced, data_path=data_path, data_path_imbalanced=data_path_imbalanced)
-
-    # Call the main training loop to train the model
-    helper_utils.train_model(model=model, optimizer=optimizer, loss_fcn=loss_fcn, train_dataloader=train_dataloader, device=device, n_epochs=n_epochs) 
-
-    # Evaluate the trained model to get a full set of performance metrics
-    accuracy, precision, recall, f1 = evaluate_metrics(model, val_dataloader, device)
-
-    # Print the final results for this configuration
-    print(
-        f"Learning Rate: {learning_rate}, Accuracy: {accuracy:.4f}, Precision: {precision:.4f}, Recall: {recall:.4f}, F1: {f1:.4f}"
+    train_dataloader, val_dataloader = helper_utils.get_dataset_dataloaders(
+        batch_size=batch_size, imbalanced=imbalanced,
+        data_path=data_path, data_path_imbalanced=data_path_imbalanced
     )
-    # Return the computed performance metrics
+
+    helper_utils.train_model(
+        model=model, optimizer=optimizer, loss_fcn=loss_fcn,
+        train_dataloader=train_dataloader, device=device, n_epochs=n_epochs
+    )
+
+    accuracy, precision, recall, f1 = evaluate_metrics(model, val_dataloader, device)
+    print(f"LR: {learning_rate}, Acc: {accuracy:.4f}, Prec: {precision:.4f}, "
+          f"Rec: {recall:.4f}, F1: {f1:.4f}")
     return accuracy, precision, recall, f1
 
 
+# Collect metrics across different learning rates
 dict_metrics = []
-
-# Loop through different learning rates and collect metrics
 for lr in learning_rates:
-
-    # Train and evaluate the model, collecting metrics, for a given learning rate
-    n_epochs = 25
-    batch_size = 128
-    acc, prec, rec, f1 = train_and_evaluate_metrics(learning_rate=lr, device=device, n_epochs=n_epochs, batch_size=batch_size)
-
-    metrics_lr = {
+    acc, prec, rec, f1 = train_and_evaluate_metrics(
+        learning_rate=lr, device=device, n_epochs=25, batch_size=128
+    )
+    dict_metrics.append({
         "learning_rate": lr,
         "accuracy": acc,
         "precision": prec,
         "recall": rec,
         "f1_score": f1,
-    }
+    })
 
-    dict_metrics.append(metrics_lr)
-
-# Convert the list of dictionaries to a DataFrame for easier plotting
 df_metrics = pd.DataFrame(dict_metrics)
-
-
 helper_utils.plot_metrics_vs_learning_rate(df_metrics)
 
 
-# This cell will take about 15 minutes.
+# ==================== STEP 6: BATCH SIZE EFFECTS ON IMBALANCED DATA ====================
+# KEY CONCEPT: On imbalanced datasets, batch size matters more.
+# Small batches may not contain samples from rare classes in every batch.
 
 dict_metrics = []
-
-# Loop through different batch sizes and collect metrics
 batch_sizes = [32, 64, 128]
-
-# Set a fixed learning rate
-lr = 0.001  # Medium learning rate
-
-# Set imbalance to True to use imbalanced dataset
-imbalanced = True
-
-n_epochs = 25
+lr = 0.001
+imbalanced = True  # Use the imbalanced version of the dataset
 
 for bs in batch_sizes:
-    acc, prec, rec, f1 = train_and_evaluate_metrics(batch_size=bs, n_epochs=n_epochs, learning_rate=lr, device=device, imbalanced=imbalanced)
-
-    metrics_bs = {
+    acc, prec, rec, f1 = train_and_evaluate_metrics(
+        batch_size=bs, n_epochs=25, learning_rate=lr, device=device, imbalanced=imbalanced
+    )
+    dict_metrics.append({
         "batch_size": bs,
         "accuracy": acc,
         "precision": prec,
         "recall": rec,
         "f1_score": f1,
-    }
-    dict_metrics.append(metrics_bs)
+    })
 
 df_metrics = pd.DataFrame(dict_metrics)
-
 helper_utils.plot_metrics_vs_batch_size(df_metrics)

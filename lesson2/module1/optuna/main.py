@@ -1,3 +1,25 @@
+"""
+Lesson 2 - Module 1: Hyperparameter Tuning with Optuna (optuna/main.py)
+=======================================================================
+WHAT YOU'LL LEARN:
+  * What hyperparameter tuning is and why it matters
+  * Using Optuna to automatically search for the best model architecture
+  * Building a flexible CNN whose architecture is defined by hyperparameters
+  * The objective function pattern: trial -> hyperparameters -> accuracy
+  * Visualizing optimization history and parameter importance
+
+KEY CONCEPT:
+  Instead of manually guessing good hyperparameters (number of layers, filters,
+  kernel sizes, dropout rate, etc.), Optuna systematically tries different
+  combinations and finds the best one automatically.
+
+  HOW OPTUNA WORKS:
+  1. You define an "objective" function that takes a trial and returns a score
+  2. Each trial samples a new combination of hyperparameters
+  3. Optuna uses the results to guide future trials (smarter than random search)
+  4. After N trials, it returns the best combination found
+"""
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,9 +31,6 @@ from pprint import pprint
 
 helper_utils.set_seed(15)
 
-# Check device
-# device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 if torch.cuda.is_available():
     device = torch.device('cuda')
 elif torch.backends.mps.is_available():
@@ -21,215 +40,165 @@ else:
 print(device)
 
 
+# ==================== STEP 1: FLEXIBLE CNN ARCHITECTURE ====================
+# KEY CONCEPT: Unlike previous models with fixed architectures, this CNN's
+# structure is DYNAMIC -- the number of layers, filters, and kernel sizes
+# are determined by hyperparameters that Optuna will tune.
+
 class FlexibleCNN(nn.Module):
     """
-    A flexible Convolutional Neural Network with a dynamically created classifier.
+    A CNN whose architecture is defined by hyperparameters.
 
-    This CNN's architecture is defined by the provided hyperparameters,
-    allowing for a variable number of convolutional layers. The classifier
-    (fully connected layers) is constructed during the first forward pass
-    to adapt to the output size of the convolutional feature extractor.
+    The feature extractor has `n_layers` convolutional blocks, each with
+    a configurable number of filters and kernel size. The classifier is
+    built dynamically during the first forward pass (because the flattened
+    size depends on the number of pooling operations).
     """
+
     def __init__(self, n_layers, n_filters, kernel_sizes, dropout_rate, fc_size):
         """
-        Initializes the feature extraction part of the CNN.
-
         Args:
-            n_layers: The number of convolutional blocks to create.
-            n_filters: A list of integers specifying the number of output
-                       filters for each convolutional block.
-            kernel_sizes: A list of integers specifying the kernel size for
-                          each convolutional layer.
-            dropout_rate: The dropout probability to be used in the classifier.
-            fc_size: The number of neurons in the hidden fully connected layer.
+            n_layers:     Number of conv blocks (1-3)
+            n_filters:    List of output channels for each conv layer [16-128]
+            kernel_sizes: List of kernel sizes for each conv layer [3 or 5]
+            dropout_rate: Dropout probability for the classifier [0.1-0.5]
+            fc_size:      Number of neurons in the hidden FC layer [64-256]
         """
         super(FlexibleCNN, self).__init__()
 
-        # Initialize an empty list to hold the convolutional blocks
+        # Build convolutional blocks dynamically
         blocks = []
-        # Set the initial number of input channels for RGB images
-        in_channels = 3
+        in_channels = 3  # Start with RGB input
 
-        # Loop to construct each convolutional block
         for i in range(n_layers):
-
-            # Get the parameters for the current convolutional layer
             out_channels = n_filters[i]
             kernel_size = kernel_sizes[i]
-            # Calculate padding to maintain the input spatial dimensions ('same' padding)
+            # "same" padding: keeps spatial dimensions unchanged before pooling
             padding = (kernel_size - 1) // 2
 
-            # Define a block as a sequence of Conv, ReLU, and MaxPool layers
             block = nn.Sequential(
                 nn.Conv2d(in_channels, out_channels, kernel_size, padding=padding),
                 nn.ReLU(),
-                nn.MaxPool2d(kernel_size=2, stride=2)
+                nn.MaxPool2d(kernel_size=2, stride=2)  # Halve spatial dimensions
             )
-            
-            # Add the newly created block to the list
             blocks.append(block)
+            in_channels = out_channels  # Output channels become next block's input
 
-            # Update the number of input channels for the next block
-            in_channels = out_channels
-
-        # Combine all blocks into a single feature extractor module
         self.features = nn.Sequential(*blocks)
-
-        # Store hyperparameters needed for building the classifier later
         self.dropout_rate = dropout_rate
         self.fc_size = fc_size
-
-        # The classifier will be initialized dynamically in the forward pass
-        self.classifier = None
+        self.classifier = None  # Built dynamically in forward()
 
     def _create_classifier(self, flattened_size, device):
-        """
-        Dynamically creates and initializes the classifier part of the network.
-
-        This helper method is called during the first forward pass to build the
-        fully connected layers based on the feature map size from the
-        convolutional base.
-
-        Args:
-            flattened_size: The number of input features for the first linear
-                            layer, determined from the flattened feature map.
-            device: The device to which the new classifier layers should be moved.
-        """
-        # Define the classifier's architecture
+        """Dynamically builds the classifier when we first know the feature size."""
         self.classifier = nn.Sequential(
             nn.Dropout(self.dropout_rate),
             nn.Linear(flattened_size, self.fc_size),
             nn.ReLU(inplace=True),
             nn.Dropout(self.dropout_rate),
-            nn.Linear(self.fc_size, 10)  # Assumes 10 output classes (e.g., CIFAR-10)
+            nn.Linear(self.fc_size, 10)  # 10 classes (CIFAR-10)
         ).to(device)
 
     def forward(self, x):
-        """
-        Defines the forward pass of the model.
-
-        Args:
-            x: The input tensor of shape (batch_size, channels, height, width).
-
-        Returns:
-            The output logits from the classifier.
-        """
-        # Get the device of the input tensor to ensure consistency
         device = x.device
-
-        # Pass the input through the feature extraction layers
-        x = self.features(x)
-
-        # Flatten the feature map to prepare it for the fully connected layers
-        flattened = torch.flatten(x, 1)
+        x = self.features(x)                       # Extract features
+        flattened = torch.flatten(x, 1)             # Flatten for FC layers
         flattened_size = flattened.size(1)
 
-        # If the classifier has not been created yet, initialize it
         if self.classifier is None:
+            # First forward pass: build classifier with the correct input size
             self._create_classifier(flattened_size, device)
 
-        # Pass the flattened features through the classifier to get the final output
         return self.classifier(flattened)
 
 
+# ==================== STEP 2: DEFINE THE OBJECTIVE FUNCTION ====================
+# KEY CONCEPT: This is the function Optuna will call repeatedly.
+# Each call:
+#   1. Samples new hyperparameters from the search space
+#   2. Builds a model with those hyperparameters
+#   3. Trains the model
+#   4. Returns the validation accuracy (what Optuna tries to maximize)
 
 def objective(trial, device):
     """
-    Defines the objective function for hyperparameter optimization using Optuna.
-
-    For each trial, this function samples a set of hyperparameters,
-    constructs a model, trains it for a fixed number of epochs, evaluates
-    its performance on a validation set, and returns the accuracy. Optuna
-    uses the returned accuracy to guide its search for the best
-    hyperparameter combination.
-
-    Args:
-        trial: An Optuna `Trial` object, used to sample hyperparameters.
-        device: The device ('cpu' or 'cuda') for model training and evaluation.
-
-    Returns:
-        The validation accuracy of the trained model as a float.
+    Optuna objective: sample hyperparameters, train, return accuracy.
     """
-    # Sample hyperparameters for the feature extractor using the Optuna trial
+    # --- Sample architecture hyperparameters ---
+    # trial.suggest_int: pick an integer in the given range
     n_layers = trial.suggest_int("n_layers", 1, 3)
+
+    # Each layer can have a different number of filters
     n_filters = [trial.suggest_int(f"n_filters_{i}", 16, 128) for i in range(n_layers)]
+
+    # Each layer can have kernel size 3 or 5
     kernel_sizes = [trial.suggest_categorical(f"kernel_size_{i}", [3, 5]) for i in range(n_layers)]
 
-    # Sample hyperparameters for the classifier
+    # --- Sample classifier hyperparameters ---
     dropout_rate = trial.suggest_float("dropout_rate", 0.1, 0.5)
     fc_size = trial.suggest_int("fc_size", 64, 256)
 
-    # Instantiate the model with the sampled hyperparameters
+    # --- Build model ---
     model = FlexibleCNN(n_layers, n_filters, kernel_sizes, dropout_rate, fc_size).to(device)
 
-    # Initialize the dynamic classifier layer by passing a dummy input through the model
-    # This ensures all parameters are instantiated before the optimizer is defined
+    # IMPORTANT: Initialize the dynamic classifier by passing a dummy input
+    # Otherwise the optimizer won't know about all parameters
     dummy_input = torch.randn(1, 3, 32, 32).to(device)
     model(dummy_input)
 
-    # Define fixed training parameters: learning rate, loss function, and optimizer
+    # --- Train ---
     learning_rate = 0.001
     loss_fcn = nn.CrossEntropyLoss()
     optimizer = optim.Adam(model.parameters(), lr=learning_rate)
 
-    # Define fixed data loading parameters and create data loaders
     batch_size = 128
     train_loader, val_loader = helper_utils.get_dataset_dataloaders(batch_size=batch_size)
 
-    # Define the fixed number of epochs for training
     n_epochs = 10
-    # Train the model using a helper function
     helper_utils.train_model(
-        model=model,
-        optimizer=optimizer,
-        train_dataloader=train_loader,
-        n_epochs=n_epochs,
-        loss_fcn=loss_fcn,
-        device=device
+        model=model, optimizer=optimizer, train_dataloader=train_loader,
+        n_epochs=n_epochs, loss_fcn=loss_fcn, device=device
     )
 
-    # Evaluate the trained model's accuracy on the validation set
+    # --- Evaluate ---
     accuracy = helper_utils.evaluate_accuracy(model, val_loader, device)
-    
-    # Return the final accuracy for this trial
     return accuracy
 
 
-# Create a study object and optimize the objective function
-study = optuna.create_study(direction='maximize') # The goal in this case is to maximize accuracy
+# ==================== STEP 3: RUN THE OPTIMIZATION ====================
+# Create an Optuna study that tries to MAXIMIZE accuracy
+study = optuna.create_study(direction='maximize')
 
-# Start the optimization process (it takes about 8 minutes for 20 trials)
-# n_trials = 20
+# Run 20 trials (each trial trains a model from scratch)
+# In practice, you'd use more trials (50-100+) for better results
 n_trials = 20
-study.optimize(lambda trial: objective(trial, device), n_trials=n_trials) # use more trials in practice
+study.optimize(lambda trial: objective(trial, device), n_trials=n_trials)
 
-# Extract the dataframe with the results
+# View all trial results
 df = study.trials_dataframe()
 
-df
-
-# Extract and print the best trial
+# Print the best result
 best_trial = study.best_trial
-
 print("Best trial:")
 print(f"  Value (Accuracy): {best_trial.value:.4f}")
-
 print("  Hyperparameters:")
 pprint(best_trial.params)
 
 
-# Plotting the optimization history
+# ==================== STEP 4: VISUALIZE RESULTS ====================
+# How accuracy improved over trials
 optuna.visualization.matplotlib.plot_optimization_history(study)
 plt.title('Optimization History')
 plt.show()
 
-# Importance of hyperparameters
+# Which hyperparameters mattered most?
 optuna.visualization.matplotlib.plot_param_importances(study)
 plt.show()
 
+# Parallel coordinate plot: see all hyperparameter combinations at once
 ax = optuna.visualization.matplotlib.plot_parallel_coordinate(
     study, params=['n_layers', 'n_filters_0', 'kernel_size_0', 'dropout_rate', 'fc_size']
 )
 fig = ax.figure
-fig.set_size_inches(12, 6, forward=True)  # forward=True updates the canvas
+fig.set_size_inches(12, 6, forward=True)
 fig.tight_layout()

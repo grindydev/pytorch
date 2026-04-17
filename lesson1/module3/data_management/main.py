@@ -1,4 +1,23 @@
-## data_management.py
+"""
+Lesson 1 - Module 3: Data Management — Custom Datasets, Transforms & Robustness
+================================================================================
+ WHAT YOU'LL LEARN:
+  • Building a custom Dataset class from scratch (FlowerDataset)
+  • Transform pipelines: Resize → CenterCrop → ToTensor → Normalize
+  • Denormalization: reversing normalization to visualize processed images
+  • Train/val/test splitting with torch.utils.data.random_split
+  • Data augmentation: RandomHorizontalFlip, RandomRotation, ColorJitter
+  • Robust data loading: handling corrupted images gracefully
+  • Monitoring the data pipeline: tracking access counts and load times
+
+ KEY CONCEPT:
+  In the real world, data is messy. Images come in different sizes, some are
+  corrupted, some are grayscale instead of RGB. This module teaches you how to
+  build a data pipeline that handles all of these issues.
+
+ DATASET:
+  Oxford 102 Flower Dataset — 102 categories of flowers, varying image sizes.
+"""
 
 import os
 import matplotlib.pyplot as plt
@@ -14,103 +33,104 @@ import data_subset
 import helper_utils
 from flower_dataset import FlowerDataset, Denormalize, RobustFlowerDataset, MonitoredDataset
 
-# Define the path to the root directory of the dataset.
-path_dataset = Path.cwd() / 'data/flower_data'
 
-# Call the function to download and prepare the dataset.
+# ==================== STEP 1: LOAD AND EXPLORE THE DATASET ====================
+# Download the flower dataset if not already present
+path_dataset = Path.cwd() / 'data/flower_data'
 helper_utils.download_dataset(path_dataset)
 
-# Display the folder structure of the dataset directory up to a depth of one.
+# Show the folder structure so we know what we're working with
 helper_utils.print_data_folder_structure(path_dataset, max_depth=1)
 
-# Initialize the dataset object, providing the path to the data.
+# Initialize the custom dataset
+#  CONCEPT: FlowerDataset is a custom class that inherits from torch.utils.data.Dataset.
+#   It must implement __len__() and __getitem__() — the two methods PyTorch requires.
 dataset = FlowerDataset(path_dataset)
 
-# Print the total number of samples in the dataset.
 print(f'Number of samples in the dataset: {len(dataset)}\n')
 
-# Define an index for a sample to retrieve.
+# Retrieve one sample to see what we get
 sel_idx = 10
+img, label = dataset[sel_idx]  # Returns (PIL_Image, int_label)
 
-# Retrieve the image and label for the selected index.
-img, label = dataset[sel_idx]
-
-# Create a string detailing the image's dimensions.
-img_size_info = f"Image size: {img.size}"
-
-# Print the image size information along with its corresponding label.
+img_size_info = f"Image size: {img.size}"  # PIL uses .size (width, height)
 print(f'{img_size_info}, Label: {label}\n')
 
+# Visualize the raw image
 helper_utils.plot_img(img, label=label, info=img_size_info)
 
-# Get all labels from the dataset object.
+# Show all unique labels and their descriptions
 dataset_labels = dataset.labels
-
-# Create a set of unique labels to remove duplicates.
 unique_labels = set(dataset_labels)
-
-# Iterate through each unique label.
 for label in unique_labels:
-    # Print the numerical label and its corresponding text description.
     print(f'Label: {label}, Description: {dataset.get_label_description(label)}')
 
-print("-"*45)
-
-# Display a 2x4 grid of random samples from the dataset for visual inspection.
+# Display a grid of random samples for visual inspection
 helper_utils.visual_exploration(dataset, num_rows=2, num_cols=4)
 
-# Define the mean values for normalization.
-mean = [0.485, 0.456, 0.406]
-# Define the standard deviation values for normalization.
-std = [0.229, 0.224, 0.225]
+
+# ==================== STEP 2: DEFINE TRANSFORM PIPELINE ====================
+#  CONCEPT: Images in the wild have DIFFERENT sizes. Neural networks expect
+#   FIXED-size inputs. The transform pipeline solves this:
+#   1. Resize(256, 256) — scale all images to the same size
+#   2. CenterCrop(224) — crop the center 224×224 region (standard for many models)
+#   3. ToTensor() — PIL → Tensor, [0,255] → [0,1]
+#   4. Normalize(mean, std) — standardize using ImageNet statistics
+#
+#  NOTE: (0.485, 0.456, 0.406) and (0.229, 0.224, 0.225) are the ImageNet mean/std.
+#   Using these is common practice when working with pre-trained models (Lesson 2).
+
+mean = [0.485, 0.456, 0.406]  # ImageNet mean for R, G, B channels
+std = [0.229, 0.224, 0.225]   # ImageNet std for R, G, B channels
 
 transform = transforms.Compose([
-    # images transforms
-    transforms.Resize((256, 256)),  # Resize images to 256x256 pixels
-    transforms.CenterCrop(224),  # Center crop to 224x224 pixels
-    # bridge to tensor
-    transforms.ToTensor(),  # Convert images to PyTorch tensors
-    # tensor transforms
-    transforms.Normalize(mean=mean, std=std),
+    # --- Image transforms (operate on PIL Images) ---
+    transforms.Resize((256, 256)),     # Resize to 256×256
+    transforms.CenterCrop(224),        # Crop center 224×224 (standard input size)
+    # --- Bridge: PIL → Tensor ---
+    transforms.ToTensor(),             # Convert to tensor, scale to [0, 1]
+    # --- Tensor transforms (operate on Tensors) ---
+    transforms.Normalize(mean=mean, std=std),  # Standardize channels
 ])
 
-# Create a new dataset instance with the specified image transformations.
+# Create a new dataset with the transform applied
 dataset_transformed = FlowerDataset(path_dataset, transform=transform)
 
-# Retrieve the transformed image and its label using the same index.
+# Retrieve the same sample — now it's a tensor with shape [3, 224, 224]
 img_transformed, label = dataset_transformed[sel_idx]
+helper_utils.quick_debug(img_transformed)  # Check shape, range, etc.
+helper_utils.plot_img(img_transformed, label=label)  # Will look weird (normalized colors)
 
-# quick check
-helper_utils.quick_debug(img_transformed)
 
-# Plot the transformed image
-helper_utils.plot_img(img_transformed, label=label)
+# ==================== STEP 3: DENORMALIZE FOR VISUALIZATION ====================
+#  CONCEPT: After normalization, pixel values are no longer in [0, 1].
+#   To display the image correctly, we need to REVERSE the normalization:
+#     original_pixel = normalized_pixel * std + mean
+#   The Denormalize class does this math for us.
 
-# Create an instance of the Denormalize class with the original mean and std.
 denormalize = Denormalize(mean=mean, std=std, transforms=transforms)
-# Apply the denormalization transform to the image tensor.
 img_tensor = denormalize(img_transformed)
 
-# Create an information string with the tensor's shape.
 img_shape_info = f"Image Shape: {img_tensor.size()}"
-# # Plot the denormalized image to visualize the result.
 helper_utils.plot_img(img_tensor, label=label, info=img_shape_info)
 
-def split_dataset(dataset, val_fraction=0.15, test_fraction=0.15):
-    """
-    Split the dataset into training, validation, and test sets.
-    
-    By default, this function splits the data into 70% for training,
-    15% for validation, and 15% for testing.
-    """
 
-    # Calculate the sizes of each split.
+# ==================== STEP 4: SPLIT INTO TRAIN / VAL / TEST ====================
+#  CONCEPT: We need THREE splits:
+#   - Training set: The model LEARNS from this data (adjusts weights)
+#   - Validation set: Used during training to tune hyperparameters & detect overfitting
+#   - Test set: Used ONCE at the end to measure final performance (unseen data)
+#
+#   Typical split: 70% train, 15% val, 15% test
+
+def split_dataset(dataset, val_fraction=0.15, test_fraction=0.15):
+    """Split dataset into train, validation, and test sets."""
     total_size = len(dataset)
     val_size = int(total_size * val_fraction)
     test_size = int(total_size * test_fraction)
     train_size = total_size - val_size - test_size
 
-    # Use random_split to create the datasets.
+    # random_split randomly partitions the dataset into non-overlapping subsets
     train_dataset, val_dataset, test_dataset = random_split(
         dataset, [train_size, val_size, test_size]
     )
@@ -123,201 +143,166 @@ print(f"Length of training dataset:   {len(train_dataset)}")
 print(f"Length of validation dataset: {len(val_dataset)}")
 print(f"Length of test dataset:       {len(test_dataset)}")
 
-print("-"*45)
 
-# Set the batch size for the data loaders.
+# ==================== STEP 5: CREATE DATA LOADERS ====================
 batch_size = 32
 
-# Create the DataLoader for the training set, with shuffling enabled.
+#  TRAINING: shuffle=True (randomize order each epoch — prevents memorization)
 train_dataloader = DataLoader(dataset=train_dataset, batch_size=batch_size, shuffle=True)
-
-# Create the DataLoader for the validation set, with shuffling disabled.
+#  VALIDATION & TEST: shuffle=False (order doesn't matter for evaluation)
 val_dataloader = DataLoader(dataset=val_dataset, batch_size=batch_size, shuffle=False)
-
-# Create the DataLoader for the test set, with shuffling disabled.
 test_dataloader = DataLoader(dataset=test_dataset, batch_size=batch_size, shuffle=False)
 
-# Define the total number of training epochs.
+
+# ==================== STEP 6: SIMULATE TRAINING EPOCHS ====================
+# This shows the STRUCTURE of training (without actual model training yet).
+# Each epoch has a training pass + validation pass.
+
 n_epochs = 2
 
-# Start the main training loop for each epoch.
 for epoch in range(n_epochs):
-    # Print a header to indicate the start of a new epoch.
     print(f"=== Processing epoch {epoch} ===")
 
-    # Announce the start of the training phase.
+    # --- Training pass ---
     print(f"Pass number {epoch} through the training set")
     print('Training...')
-    # Get the total number of samples in the training set.
     train_samples = len(train_dataset)
-    # Create a progress bar for the training data loader.
     train_bar = helper_utils.get_dataloader_bar(train_dataloader, color='blue')
-    
-    # Iterate over the training data loader to get batches of images and labels.
-    for batch, (images, labels) in enumerate(train_dataloader):
-        # Update the training progress bar for the current batch.
-        helper_utils.update_dataloader_bar(train_bar, batch, batch_size, train_samples)
 
-    # Announce the start of the validation phase.
+    for batch, (images, labels) in enumerate(train_dataloader):
+        helper_utils.update_dataloader_bar(train_bar, batch, batch_size, train_samples)
+        # In a real training loop, you'd do:
+        # optimizer.zero_grad()
+        # outputs = model(images)
+        # loss = loss_function(outputs, labels)
+        # loss.backward()
+        # optimizer.step()
+
+    # --- Validation pass ---
     print(f"\nPass number {epoch} through the validation set")
     print('Validation...')
-    # Create a progress bar for the validation data loader.
     val_bar = helper_utils.get_dataloader_bar(val_dataloader, color='orange')
-    # Get the total number of samples in the validation set.
     val_samples = len(val_dataset)
-    
-    # Iterate over the validation data loader to get batches of images and labels.
+
     for batch, (images, labels) in enumerate(val_dataloader):
-        # Update the validation progress bar for the current batch.
         helper_utils.update_dataloader_bar(val_bar, batch, batch_size, val_samples)
+        # In real training: evaluate model accuracy here
 
 
-# Announce the final evaluation on the test set.
+# --- Final test pass ---
 print("\nFinal pass through the test set for evaluation")
-# Create a progress bar for the test data loader.
 test_bar = helper_utils.get_dataloader_bar(test_dataloader, color='green')
-# Get the total number of samples in the test set.
 test_samples = len(test_dataset)
 
-# Iterate over the test data loader to get batches of images and labels.
 for batch, (images, labels) in enumerate(test_dataloader):
-    # Update the test progress bar for the current batch.
     helper_utils.update_dataloader_bar(test_bar, batch, batch_size, test_samples)
 
-print("-"*45)
+
+# ==================== STEP 7: DATA AUGMENTATION ====================
+#  CONCEPT: Augmentation artificially increases dataset diversity by applying
+#   RANDOM transformations to training images. This helps the model generalize
+#   better (reduce overfitting) by seeing varied versions of each image.
+#
+#  IMPORTANT: Only apply augmentation to TRAINING data!
+#   Validation and test data should only get standard preprocessing.
 
 def get_augmentation_transform(mean, std):
     """
-    Creates and returns a composition of image transformations for data augmentation
-    and preprocessing.
+    Creates a transform pipeline with data augmentation for training.
 
-    Args:
-        mean (list or tuple): A sequence of mean values for each channel.
-        std (list or tuple): A sequence of standard deviation values for each channel.
-
-    Returns:
-        torchvision.transforms.Compose: A composed pipeline of transformations.
+    The pipeline has two parts:
+    1. Random augmentations (different each time)
+    2. Deterministic preprocessing (same each time)
     """
-    # Define a list of data augmentation transformations to be applied randomly.
+    # --- Random augmentations ---
     augmentations_transforms = [
-        # Randomly flip the image horizontally with a 50% probability.
-        transforms.RandomHorizontalFlip(p=0.5),
-        # Randomly rotate the image within a range of +/- 10 degrees.
-        transforms.RandomRotation(degrees=10),
-        # Randomly adjust the brightness of the image.
-        transforms.ColorJitter(brightness=0.2),
+        transforms.RandomHorizontalFlip(p=0.5),  # 50% chance to mirror flip
+        transforms.RandomRotation(degrees=10),    # Rotate ±10 degrees
+        transforms.ColorJitter(brightness=0.2),   # Randomly change brightness ±20%
     ]
-    
-    # Define the main list of standard, non-random transformations.
+
+    # --- Deterministic preprocessing (same every time) ---
     main_transforms = [
-        # Resize the input image to 256x256 pixels.
         transforms.Resize((256, 256)),
-        # Crop the center 224x224 pixels of the image.
         transforms.CenterCrop(224),
-        # Convert the PIL Image to a PyTorch tensor.
         transforms.ToTensor(),
-        # Normalize the tensor with the provided mean and standard deviation.
         transforms.Normalize(mean=mean, std=std),
     ]
 
-    # Combine the augmentation and main transformations into a single pipeline.
+    # Combine: augmentations first, then standard preprocessing
     transform = transforms.Compose(augmentations_transforms + main_transforms)
-    # Return the final composed transform object.
     return transform
 
 
-# Create the augmentation and preprocessing pipeline, providing the normalization stats.
 augmentation_transform = get_augmentation_transform(mean=mean, std=std)
-
-# Initialize a new dataset instance that will use the augmentation pipeline.
 dataset_augmented = FlowerDataset(path_dataset, transform=augmentation_transform)
 
-# Display 8 augmented versions of the selected image to see the transformations.
+# Show 8 different augmented versions of the same image
+#  OBSERVE: Each version is slightly different due to random augmentation
 helper_utils.visualize_augmentations(dataset_augmented, denormalize, idx=sel_idx, num_versions=8)
 
-# Apply the augmentation pipeline to the training subset.
+# Apply augmentation to training only; basic preprocessing to val/test
 train_dataset = data_subset.SubsetWithTransform(train_dataset, transform=augmentation_transform)
-# Apply the basic preprocessing transform to the validation subset.
 val_dataset = data_subset.SubsetWithTransform(val_dataset, transform=transform)
-# Apply the basic preprocessing transform to the test subset.
 test_dataset = data_subset.SubsetWithTransform(test_dataset, transform=transform)
 
-print(train_dataset.transform)
-print(val_dataset.transform)
-print(test_dataset.transform)
 
-print("-"*45)
+# ==================== STEP 8: ROBUST DATA LOADING ====================
+#  CONCEPT: Real-world data is MESSY. Images can be:
+#   - Corrupted (can't open the file)
+#   - Too small (smaller than 32×32 pixels)
+#   - Wrong color mode (grayscale instead of RGB)
+#
+#   RobustFlowerDataset handles all these cases gracefully:
+#   - Skips corrupted files and returns the next valid image
+#   - Auto-converts grayscale → RGB
+#   - Logs all errors for debugging
 
-# Define the path to the directory containing the corrupted dataset.
-corrupted_dataset_path =  Path.cwd() / 'module3/corrupted_flower_data'
-
-# Initialize the robust dataset handler with the path to the corrupted data.
+corrupted_dataset_path = Path.cwd() / 'module3/corrupted_flower_data'
 robust_dataset = RobustFlowerDataset(corrupted_dataset_path)
 
-# Set the index to a known corrupted image. Image 2 is tiny
+# Test with a known tiny image (idx=2) — should skip it and return the next valid one
 idx = 2
-
-# Attempt to retrieve the image; the robust dataset will skip the bad one and return the next.
 img, label = robust_dataset[idx]
-
-# Plot the retrieved image, which should be the one following the corrupted one.
 helper_utils.plot_img(img)
 
-# Explicitly retrieve the next image in the sequence to verify.
+# Verify the next image is the same (confirming the skip logic works)
 next_img, next_label = robust_dataset[idx + 1]
-
-# Plot the next image; it should be identical to the one above.
 helper_utils.plot_img(next_img)
 
-# Set the index to a known grayscale image.
-# Image 4 is corrupted (grayscale)
+# Test with a known grayscale image (idx=4) — should auto-convert to RGB
 idx = 4
-
-# Reconstruct the path to the original image file.
 original_img_path = os.path.join(robust_dataset.img_dir, f"image_{idx + 1:05d}.jpg")
-# Open the original image directly to check its mode before correction.
 original_img = Image.open(original_img_path)
-# Print the mode of the original, uncorrected image.
-print(f"Mode of the original image file: {original_img.mode}")  # Prints 'L' for 8-bit grayscale. A standard color image would be 'RGB'.
+print(f"Mode of the original image file: {original_img.mode}")  # 'L' = grayscale
 
-# Retrieve the image; the robust loader should automatically convert it to RGB.
 img, label = robust_dataset[idx]
-
-# Plot the image to visually confirm it's now in color.
 helper_utils.plot_img(img)
+print(f"Mode of the corrected image: {img.mode}")  # 'RGB' after correction
 
-# Print the image's mode to confirm it has been corrected to 'RGB'.
-print(f"Mode of the corrected image: {img.mode}")
-
-# Set the index to a known corrupted or unreadable image.
+# Test with a known corrupted/unreadable image (idx=6) — should skip
 idx = 6
-
-# Attempt to retrieve the image; the robust loader should skip the corrupted file and return the next one.
 robust_img = robust_dataset[idx][0]
-
-# Plot the retrieved image, which should be the sample from the next index (7).
 helper_utils.plot_img(robust_img)
 
-# Explicitly retrieve the next image in the sequence to verify the fallback logic.
-# Check next image to ensure it's correct
 next_img, next_label = robust_dataset[idx + 1]
-
-# Plot the next image; it should be identical to the one above, confirming the skip.
 helper_utils.plot_img(next_img)
 
-# Display the summary of any corrupted or problematic images found during loading.
+# Show a summary of all errors encountered
 robust_dataset.get_error_summary()
 
-print("-"*45)
 
-# Initialize the monitored dataset with the path to the potentially corrupted data.
+# ==================== STEP 9: PIPELINE MONITORING ====================
+#  CONCEPT: MonitoredDataset wraps the robust dataset and tracks:
+#   - How many times each image was accessed
+#   - How long each load takes (detect slow I/O)
+#   - Which images were never loaded (potential issues)
+
 monitored_corrupt_dataset = MonitoredDataset(corrupted_dataset_path)
 
-# Loop through every index in the dataset to simulate a full pass.
-# Iterate through the dataset to trigger monitoring
+# Iterate through the entire dataset to trigger monitoring
 for idx in range(len(monitored_corrupt_dataset)):
-    # Access the sample at the current index to trigger the monitoring and error-handling logic.
     img, label = monitored_corrupt_dataset[idx]
 
-# Print the statistics
+# Print performance statistics
 monitored_corrupt_dataset.print_stats()

@@ -1,5 +1,28 @@
-import numpy as np
+"""
+Lesson 1 - Module 2: Digit Detective — MNIST Classification (digit_detective.py)
+=================================================================================
+ WHAT YOU'LL LEARN:
+  • Loading built-in datasets with torchvision (MNIST handwritten digits)
+  • Image transforms: ToTensor + Normalize
+  • Building a simple DNN (Dense Neural Network) for image classification
+  • The training loop: train_epoch() and evaluate() functions
+  • Using DataLoader for batching and shuffling
+  • CrossEntropyLoss for multi-class classification
+  • Adam optimizer — an adaptive learning rate optimizer
 
+ KEY CONCEPT:
+  MNIST is the "Hello World" of deep learning — 28×28 grayscale images of
+  handwritten digits (0–9). The goal: predict which digit an image shows.
+  This is a 10-class classification problem.
+
+ MODEL ARCHITECTURE:
+  Input (784) → Dense(128) → ReLU → Dense(10)
+  - 784 = 28 × 28 pixels, flattened to a 1D vector
+  - 128 hidden neurons learn patterns (edges, curves, loops)
+  - 10 output neurons = one per digit class (0–9)
+"""
+
+import numpy as np
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -12,6 +35,11 @@ import helper_utils
 from pathlib import Path
 
 
+# ==================== STEP 1: DEVICE SELECTION ====================
+#  CONCEPT: Deep learning is MUCH faster on GPU. PyTorch supports:
+#   - CUDA: NVIDIA GPUs (most common for training)
+#   - MPS: Apple Silicon GPUs (M1/M2/M3 Macs)
+#   - CPU: Fallback, works but slow
 if torch.cuda.is_available():
     device = torch.device("cuda")
     print(f"Using device: CUDA")
@@ -22,283 +50,234 @@ else:
     device = torch.device("cpu")
     print(f"Using device: CPU")
 
+
+# ==================== STEP 2: EXPLORE RAW DATA (WITHOUT TRANSFORMS) ====================
+# First, let's see what the data looks like BEFORE any processing.
+
 data_path = Path.cwd() / "data/MNIST_data"
 
+# Load MNIST training set WITHOUT any transforms
 train_dataset_without_transform = torchvision.datasets.MNIST(
-    root=data_path,     # Path to the directory where the data is/will be stored
-    train=True,         # Specify that you want the training split of the dataset
-    download=True       # Download the data if it's not found in the root directory
+    root=data_path,      # Where to store/load data on disk
+    train=True,          # True = training split (60k images), False = test split (10k images)
+    download=True        # Download from the internet if not found locally
 )
 
-# Get the first sample (index 0), as a (image, label) tuple
-image_pil, label = train_dataset_without_transform[0] # Get the first image
-    
-print(f"Image type:        {type(image_pil)}")
-# Since `image_pil` is a PIL Image object, its dimensions are accessed using the .size attribute.
-print(f"Image Dimensions:  {image_pil.size}")
-print(f"Label Type:        {type(label)}")
-print(f"Label value:       {label}")
+# Each sample is a (PIL_Image, label) tuple
+image_pil, label = train_dataset_without_transform[0]  # Get the first sample
 
-# # Visualize the sample image and its corresponding label
-# helper_utils.display_image(image_pil, label, "MNIST Digit (PIL Image)", show_values=False)
+print(f"Image type:        {type(image_pil)}")    # <class 'PIL.Image.Image'>
+print(f"Image Dimensions:  {image_pil.size}")      # (28, 28) — width × height
+print(f"Label Type:        {type(label)}")          # <class 'int'>
+print(f"Label value:       {label}")                 # The digit (0–9)
 
-# Convert images to tensors and normalize pixel values
-# Pixel values are scaled to [0, 1] and then standardized to mean 0 and std 1
+
+# ==================== STEP 3: DEFINE TRANSFORMS ====================
+#  CONCEPT: Transforms are a pipeline of operations applied to each image:
+#   1. ToTensor() — Converts PIL Image → PyTorch Tensor, scales pixels from [0,255] to [0.0, 1.0]
+#   2. Normalize(mean, std) — Standardizes: (pixel - mean) / std
+#      This helps the model converge faster.
+#
+#  NOTE: (0.1307,) and (0.3081,) are the pre-computed mean and std of MNIST.
+#   These values were calculated over the entire training set.
+
 transform = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.1307,), (0.3081,))  # MNIST mean and std
+    transforms.ToTensor(),                          # PIL → Tensor, [0,255] → [0,1]
+    transforms.Normalize((0.1307,), (0.3081,))      # Standardize to ~mean=0, ~std=1
 ])
 
+
+# ==================== STEP 4: LOAD DATASETS WITH TRANSFORMS ====================
+# Now load the datasets WITH the transform pipeline applied to each image.
+
 train_dataset = torchvision.datasets.MNIST(
-    root=data_path,     # Path to the directory where the data is/will be stored
-    train=True,         # Specify that you want the training split of the dataset
-    download=True,      # Download the data if it's not found in the root directory
-    transform=transform # Apply the defined transformations to each image
+    root=data_path,
+    train=True,
+    download=True,
+    transform=transform  # ← The transform is applied here
 )
 
-# Access the first item again
+# Check what we get after transformation
 image_tensor, label = train_dataset[0]
+print(f"Image Type (after transform):  {type(image_tensor)}")   # torch.Tensor
+print(f"Image Shape (after transform): {image_tensor.shape}")   # [1, 28, 28] — (channels, height, width)
+print(f"Label value:                   {label}")
 
-print(f"Image Type:                   {type(image_tensor)}")
-# Since the `image` is now a PyTorch Tensor, its dimensions are accessed using the .shape attribute.
-print(f"Image Shape After Transform:  {image_tensor.shape}")
-print(f"Label Type:                   {type(label)}")
-print(f"Label value:                  {label}")
+#  NOTE: The shape is [1, 28, 28] because:
+#   - 1 = number of color channels (grayscale = 1, RGB = 3)
+#   - 28 = height in pixels
+#   - 28 = width in pixels
 
-# Visualize the transformed image and its label
+# Visualize the tensor image
 helper_utils.display_image(image_tensor, label, "MNIST Digit (Tensor)", show_values=True)
 
+# Load the TEST dataset (used to evaluate model performance on unseen data)
 test_dataset = torchvision.datasets.MNIST(
-    root=data_path,     # Path to the directory where the data is/will be stored
-    train=False,        # Specify that you want the testing split of the dataset
-    download=True,      # Download the data if it's not found in the root directory
-    transform=transform # Apply the defined transformations to each image
+    root=data_path,
+    train=False,         # ← This gives us the test split (10k images)
+    download=True,
+    transform=transform
 )
 
-# Create a data loader for the training set with shuffling enabled
-train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 
-# Create a data loader for the test set with a larger batch size and no shuffling
+# ==================== STEP 5: CREATE DATA LOADERS ====================
+#  CONCEPT: DataLoader handles batching, shuffling, and parallel loading.
+#   Instead of feeding one image at a time, we feed a BATCH of images.
+#   This is much more efficient for GPU computation.
+#
+#   - batch_size=64: Process 64 images at once
+#   - shuffle=True for training: Randomize order each epoch (prevents the model
+#     from memorizing the order of examples)
+#   - shuffle=False for testing: Order doesn't matter for evaluation
+
+train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 test_loader = DataLoader(test_dataset, batch_size=1000, shuffle=False)
 
-class SimpleMNISTDNN(nn.Module):
-    """
-    A simple deep neural network model for the MNIST dataset.
 
-    This model consists of a flatten layer followed by two linear layers
-    with a ReLU activation function. It is designed for classification tasks
-    on 28x28 grayscale images.
-    """
+# ==================== STEP 6: DEFINE THE NEURAL NETWORK ====================
+#  CONCEPT: A simple feed-forward (dense) neural network for classification.
+#   - Flatten: Converts 2D image [1, 28, 28] → 1D vector [784]
+#   - Linear(784, 128): First hidden layer — learns 128 features from 784 pixels
+#   - ReLU: Non-linear activation (sets negative values to 0)
+#   - Linear(128, 10): Output layer — 10 scores, one per digit class
+
+class SimpleMNISTDNN(nn.Module):
+    """A simple deep neural network for MNIST digit classification."""
+
     def __init__(self):
-        """
-        Initializes the layers of the neural network.
-        """
         super(SimpleMNISTDNN, self).__init__()
-        # Initializes a layer to flatten the input tensor.
-        # 28x28 input image to a 784-dimensional vector.
-        self.flatten = nn.Flatten()
-        # Initializes the sequential layers of the neural network
+        self.flatten = nn.Flatten()  # Reshape [batch, 1, 28, 28] → [batch, 784]
         self.layers = nn.Sequential(
-            # Defines the first linear layer with 784 input features and 128 output features.
-            nn.Linear(784, 128),
-            # Applies the rectified linear unit activation function.
-            nn.ReLU(),
-            # Defines the second linear layer with 128 input features and 10 output features.
-            nn.Linear(128, 10)
+            nn.Linear(784, 128),  # Input layer → Hidden layer
+            nn.ReLU(),            # Non-linear activation
+            nn.Linear(128, 10)    # Hidden layer → Output layer (10 classes)
         )
 
     def forward(self, x):
-        """
-        Defines the forward pass of the model.
+        x = self.flatten(x)  # Flatten the 2D image to 1D
+        x = self.layers(x)   # Pass through the layers
+        return x
 
-        Args:
-            x: The input tensor.
 
-        Returns:
-            The output tensor after passing through the network layers.
-        """
-        # Flattens the input tensor.
-        x = self.flatten(x)
-        # Passes the flattened tensor through the sequential layers.
-        x = self.layers(x)
-        return x    
-    
+# ==================== STEP 7: DEFINE LOSS FUNCTION & OPTIMIZER ====================
+#  CONCEPT: CrossEntropyLoss — the standard loss for multi-class classification.
+#   It combines LogSoftmax + NLLLoss in one step.
+#   The model outputs raw "logits" (scores), and this loss:
+#   1. Converts scores to probabilities via softmax
+#   2. Measures how wrong the predicted probabilities are vs. the true label
+#
+#  CONCEPT: Adam optimizer — an adaptive learning rate optimizer.
+#   Unlike SGD which uses a fixed learning rate, Adam automatically adjusts
+#   the learning rate for each parameter based on gradient history.
+#   Generally converges faster than plain SGD.
 
-# Initialize the neural network model
 model = SimpleMNISTDNN()
+loss_function = nn.CrossEntropyLoss()              # Multi-class classification loss
+optimizer = optim.Adam(model.parameters(), lr=0.001)  # Adam with learning rate 0.001
 
-# Define the loss function, suitable for multi-class classification
-loss_function = nn.CrossEntropyLoss()
 
-# Set up the Adam optimizer to update the model's parameters with a learning rate of 0.001
-optimizer = optim.Adam(model.parameters(), lr=0.001)
+# ==================== STEP 8: TRAINING FUNCTION (ONE EPOCH) ====================
+#  CONCEPT: One "epoch" = one complete pass through the entire training dataset.
+#   Since we use batches, one epoch = multiple batches = multiple optimizer steps.
 
 def train_epoch(model, loss_function, optimizer, train_loader, device):
     """
-    Trains a PyTorch model for a single epoch.
-
-    This function iterates over the training dataset, performs the forward and
-    backward passes, and updates the model's weights. It also tracks and
-    prints the loss and accuracy at specified intervals.
-
-    Args:
-        model: The neural network model to be trained.
-        loss_function: The loss function used to calculate the error.
-        optimizer: The optimizer used to update the model's weights.
-        train_loader: The DataLoader providing batches of training data.
-        device: The device (e.g., 'cuda' or 'cpu') on which to perform training.
-
-    Returns:
-        A tuple containing:
-        - model: The model after training for one epoch.
-        - avg_epoch_loss: The average loss calculated over all batches in the epoch.
+    Trains the model for one epoch.
+    Returns: (trained_model, average_loss_for_epoch)
     """
-    # Ensure the model is on the correct device for training
-    model = model.to(device)
-    # Set the model to training mode
-    model.train()
-    
-    # Initialize trackers for the entire epoch's loss
+    model = model.to(device)   # Move model to GPU/CPU
+    model.train()               #  Set to training mode (enables dropout, batchnorm updates, etc.)
+
     epoch_loss = 0.0
-    
-    # Initialize trackers for periodic progress reporting
     running_loss = 0.0
     num_correct_predictions = 0
     total_predictions = 0
     total_batches = len(train_loader)
 
-    # Iterate over the training data in batches
     for batch_idx, (inputs, targets) in enumerate(train_loader):
-        # Move the current batch of data to the specified device
+        # Move data to the same device as the model
         inputs, targets = inputs.to(device), targets.to(device)
-        
-        # Clear any gradients from the previous iteration
-        optimizer.zero_grad()
-        
-        # Perform a forward pass to get model predictions
-        outputs = model(inputs)
-        
-        # Calculate the loss for the current batch
-        loss = loss_function(outputs, targets)
-        
-        # Perform backpropagation to compute gradients
-        loss.backward()
-        
-        # Update the model's weights based on the computed gradients
-        optimizer.step()
-        
-        # Accumulate the loss for tracking and reporting
+
+        # --- THE CORE TRAINING LOOP (same 5 steps as leaner.py) ---
+        optimizer.zero_grad()        # Step 1: Clear old gradients
+        outputs = model(inputs)      # Step 2: Forward pass — get predictions
+        loss = loss_function(outputs, targets)  # Step 3: Calculate loss
+        loss.backward()              # Step 4: Backpropagation — compute gradients
+        optimizer.step()             # Step 5: Update weights
+
+        # --- Track metrics ---
         loss_value = loss.item()
         epoch_loss += loss_value
         running_loss += loss_value
-        
-        # Calculate accuracy metrics for the current batch
+
+        # Calculate accuracy for this batch
+        # outputs.max(1) returns (max_values, argmax_indices) along dim 1
+        # argmax gives the predicted class (the digit with highest score)
         _, predicted_indices = outputs.max(1)
         batch_size = targets.size(0)
         total_predictions += batch_size
-        num_correct_in_batch = predicted_indices.eq(targets).sum().item()
-        num_correct_predictions += num_correct_in_batch
+        num_correct_predictions += predicted_indices.eq(targets).sum().item()
 
-        # Check if it's time to print a progress update
+        # Print progress periodically
         if (batch_idx + 1) % 134 == 0 or (batch_idx + 1) == total_batches:
-            # Calculate average loss and accuracy for the current interval
             avg_running_loss = running_loss / 134
             accuracy = 100. * num_correct_predictions / total_predictions
-            
-            # Print the progress update
             print(f'\tStep {batch_idx + 1}/{total_batches} - Loss: {avg_running_loss:.3f} | Acc: {accuracy:.2f}%')
-            
-            # Reset the trackers for the next reporting interval
             running_loss = 0.0
             num_correct_predictions = 0
             total_predictions = 0
-            
-    # Calculate the average loss for the entire epoch
+
     avg_epoch_loss = epoch_loss / total_batches
-    # Return the trained model and the average epoch loss
     return model, avg_epoch_loss
 
 
+# ==================== STEP 9: EVALUATION FUNCTION ====================
+#  CONCEPT: Evaluation = measuring how well the model performs on UNSEEN test data.
+#   Key differences from training:
+#   - model.eval() — disables dropout, uses running stats for batchnorm
+#   - torch.no_grad() — don't compute gradients (saves memory, faster)
+#   - No optimizer.step() — we're NOT updating weights, just measuring accuracy
+
 def evaluate(model, test_loader, device):
-    """
-    Evaluates the model's accuracy on a test dataset.
-
-    This function sets the model to evaluation mode, iterates through the test data,
-    and calculates the percentage of correct predictions.
-
-    Args:
-        model: The neural network model to be evaluated.
-        test_loader: A data loader containing the test dataset.
-        device: The device (e.g., 'cpu' or 'cuda') to run the evaluation on.
-
-    Returns:
-        The accuracy of the model on the test dataset as a percentage.
-    """
-    # Sets the model to evaluation mode.
-    model.eval()
-    # Initializes a counter for correct predictions.
+    """Evaluates model accuracy on the test dataset."""
+    model.eval()  #  Set to evaluation mode
     num_correct_predictions = 0
-    # Initializes a counter for the total number of predictions.
     total_predictions = 0
 
-    # Disables gradient calculation to reduce memory usage and speed up computations.
-    with torch.no_grad():
-        # Iterates over all batches in the test data loader.
+    with torch.no_grad():  #  Disable gradient tracking for efficiency
         for inputs, targets in test_loader:
-            # Moves the input data and targets to the specified device.
             inputs, targets = inputs.to(device), targets.to(device)
-            
-            # Performs a forward pass to get the model's output.
-            outputs = model(inputs)
-            
-            # Retrieves the index of the highest value in the output tensor, which represents the predicted class.
-            _, predicted_indices = outputs.max(1)
-            
-            # Gets the size of the current batch.
-            batch_size = targets.size(0)
-            # Adds the batch size to the total number of predictions.
-            total_predictions = total_predictions + batch_size
-            
-            # Compares the predicted indices with the actual target values.
-            correct_predictions = predicted_indices.eq(targets)
-            # Sums the correct predictions in the current batch.
-            num_correct_in_batch = correct_predictions.sum().item()
-            # Adds the correct predictions from the current batch to the total count.
-            num_correct_predictions = num_correct_predictions + num_correct_in_batch
 
-    # Calculates the overall accuracy as a percentage.
+            outputs = model(inputs)                    # Forward pass only
+            _, predicted_indices = outputs.max(1)      # Get predicted class
+
+            batch_size = targets.size(0)
+            total_predictions += batch_size
+            num_correct_predictions += predicted_indices.eq(targets).sum().item()
+
     accuracy_percentage = (num_correct_predictions / total_predictions) * 100
-    # Prints the calculated accuracy to the console.
-    print((f'\tAccuracy - {accuracy_percentage:.2f}%'))
-    
+    print(f'\tAccuracy - {accuracy_percentage:.2f}%')
     return accuracy_percentage
 
 
-# Set the total number of training epochs (Feel free to set a different number)
-num_epochs = 5
+# ==================== STEP 10: RUN THE TRAINING ====================
+# Train for multiple epochs, evaluating after each one.
 
-# Initialize lists to store metrics from each epoch for later analysis
+NUM_EPOCHS = 5
 train_loss = []
 test_acc = []
 
-# Begin the training and evaluation process
-for epoch in range(num_epochs):
+for epoch in range(NUM_EPOCHS):
     print(f'\n[Training] Epoch {epoch+1}:')
-    # Call the training function to train the model for one epoch
     trained_model, loss = train_epoch(model, loss_function, optimizer, train_loader, device)
-    # Store the average training loss for the epoch
     train_loss.append(loss)
-    
+
     print(f'[Testing] Epoch {epoch+1}:')
-    # Call the evaluation function to measure performance on the test set
     accuracy = evaluate(trained_model, test_loader, device)
-    # Store the test accuracy for the epoch
     test_acc.append(accuracy)
 
-# Visualize model predictions on a random sample of test images
+# Visualize some predictions
 helper_utils.display_predictions(trained_model, test_loader, device)
 
-
-# Plot the training loss and test accuracy curves over all epochs
+# Plot loss and accuracy curves over all epochs
 helper_utils.plot_metrics(train_loss, test_acc)
-

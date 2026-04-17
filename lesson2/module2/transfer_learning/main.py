@@ -1,3 +1,26 @@
+"""
+Lesson 2 - Module 2: Transfer Learning (transfer_learning/main.py)
+===================================================================
+WHAT YOU'LL LEARN:
+  * What transfer learning is and why it's so powerful
+  * Three transfer learning strategies:
+    1. Feature Extraction: Freeze all pre-trained layers, train only new head
+    2. Fine-Tuning:        Unfreeze the top layers, train them + new head
+    3. Full Retraining:    Unfreeze everything, train the whole model
+  * Loading pre-trained models from torchvision (MobileNetV3, ResNet18)
+  * Freezing layers with requires_grad = False
+  * Replacing the final classification layer for a new task
+
+KEY CONCEPT:
+  Transfer learning: Instead of training from scratch (random weights), start
+  with a model pre-trained on a large dataset (e.g., ImageNet with 14M images).
+  The pre-trained model already knows how to detect edges, textures, shapes --
+  you just need to adapt the final layer to YOUR specific task.
+
+  WHY IT WORKS: Early layers learn generic features (edges, colors) useful for
+  ANY image task. Only the later layers need task-specific adjustments.
+"""
+
 import torch
 import torch.nn as nn
 import torchvision.models as tv_models
@@ -11,167 +34,126 @@ print(f"Using Device: {device}")
 
 emnist_data_path = Path.cwd() / 'data/EMNIST_data'
 
-print("emnist_data_path: ", emnist_data_path)
 
-# Define the transformation pipeline
+# ==================== STEP 1: DATA PREPARATION ====================
+# KEY CONCEPT: Pre-trained models expect specific input format:
+#   - 3 color channels (RGB)
+#   - Size 224x224 (standard for ImageNet-trained models)
+#   - Normalized with ImageNet mean and std
+#
+# EMNIST images are 28x28 grayscale, so we must:
+#   1. Convert grayscale to 3 channels (Grayscale(num_output_channels=3))
+#   2. Resize to 224x224
+#   3. Apply augmentations (rotation, flip)
+#   4. Normalize with ImageNet statistics
+
 emnist_transformation = transforms.Compose([
-    # Convert grayscale image to 3 channels to match MobileNetV2's input
-    transforms.Grayscale(num_output_channels=3),
-    # Resize the image to 224x224, the standard input size for MobileNetV2
-    transforms.Resize((224, 224)),
-    # Apply the 90-degree rotation augmentation
-    transforms.RandomRotation(degrees=(90, 90)),
-    # Apply the vertical flip augmentation
-    transforms.RandomVerticalFlip(p=1.0),
-    # Convert the image to a PyTorch Tensor
-    transforms.ToTensor(),
-    # Normalize the tensor using ImageNet's mean and standard deviation
-    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    transforms.Grayscale(num_output_channels=3),        # 1 channel -> 3 channels
+    transforms.Resize((224, 224)),                      # 28x28 -> 224x224
+    transforms.RandomRotation(degrees=(90, 90)),        # Data augmentation
+    transforms.RandomVerticalFlip(p=1.0),               # Data augmentation
+    transforms.ToTensor(),                               # PIL -> Tensor
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],    # ImageNet normalization
+                         std=[0.229, 0.224, 0.225])
 ])
 
-
-# Create the training and validation DataLoaders.
 train_loader, val_loader = helper_utils.create_emnist_dataloaders(
     emnist_data_path=emnist_data_path,
     batch_size=32,
-    transform=emnist_transformation  # Apply the defined transformations
+    transform=emnist_transformation
 )
 
-# Load the pre-trained MobileNetV3 model and set it to evaluation mode for inference
-mobilenet_model = tv_models.mobilenet_v3_small(weights='IMAGENET1K_V1').eval()
 
-# Load the mapping of class indices to human-readable names from the JSON file
+# ==================== STEP 2: EXPLORE PRE-TRAINED MODELS ====================
+# Load MobileNetV3 pre-trained on ImageNet (1000 classes)
+mobilenet_model = tv_models.mobilenet_v3_small(weights='IMAGENET1K_V1').eval()
 class_names = helper_utils.load_imagenet_classes('./imagenet_class_index.json')
 
-# # Visualize the model's predictions on the validation images
-# helper_utils.show_predictions(mobilenet_model, val_loader, device, class_names)
-
-# Instantiate the ResNet18 model architecture and load the selected weights
+# Load ResNet18 pre-trained on ImageNet
 resnet18_model = tv_models.resnet18(weights='IMAGENET1K_V1')
-
-# ### Uncomment and execute the line below if you wish print the model's architecture.
 print(resnet18_model)
 
-# Iterate through each parameter in model.features.parameters()
-for feature_parameter in mobilenet_model.features.parameters():
-    # Set the requires_grad attribute of each feature_parameter to False
-    feature_parameter.requires_grad = False
 
-# Access the fully connected layer (fc) of the resnet18_model
-original_fc_layer = resnet18_model.fc
+# ==================== STRATEGY 1: FEATURE EXTRACTION ====================
+# KEY CONCEPT: Freeze ALL pre-trained layers. Train ONLY the new classification head.
+#
+# WHEN TO USE: Small dataset, similar task to original training.
+#
+# HOW IT WORKS:
+#   1. Load pre-trained model
+#   2. Freeze all feature extraction layers (requires_grad = False)
+#   3. Replace the final layer with a new one for YOUR classes
+#   4. Train only the new layer
 
-print("Model's Original Fully Connected Layer:")
-print(original_fc_layer)
-
-# Get the number of input features to the original fully connected layer
-# This is stored in the 'in_features' attribute of the linear layer
-num_features = original_fc_layer.in_features
-
-# Define the number of output classes for the new classification task
-num_classes = 5
-
-# Create a new fully connected layer (Linear layer)
-new_fc_layer = nn.Linear(in_features=num_features, out_features=num_classes)
-
-# Replace the original fully connected layer of resnet18_model with the new_fc_layer
-resnet18_model.fc = new_fc_layer
-
-print("Model's New Fully Connected Layer:")
-print(resnet18_model.fc)
-
-##****** Strategy 1: Feature Extraction (Train Only the New Head) ******
-
-# Instantiate the MobileNetV3 Small architecture and load the selected weights
 mobilenet_model = tv_models.mobilenet_v3_small(weights='IMAGENET1K_V1')
 
-# ### Uncomment and execute the line below if you wish to print the model's architecture.
-print(mobilenet_model)
-
-# Iterate through each parameter in model.features.parameters()
+# Freeze ALL feature extraction layers
+# requires_grad = False means: "don't compute gradients, don't update these weights"
 for feature_parameter in mobilenet_model.features.parameters():
-    # Set the requires_grad attribute of each feature_parameter to False
     feature_parameter.requires_grad = False
 
-# Access the final classification layer of the model
+# Replace the output layer for 10 EMNIST digit classes (instead of 1000 ImageNet classes)
 last_classifier_layer = mobilenet_model.classifier[-1]
-
-print("Model's Original Output Layer:")
-print(last_classifier_layer)
-
-# Access the in_features attribute of last_classifier_layer
-num_features = last_classifier_layer.in_features
-
-# Define the number of output classes for the new classification task
+num_features = last_classifier_layer.in_features  # Input size from the layer before
 num_classes = 10
 
-# Create a new Linear layer for classification
 new_classifier = nn.Linear(in_features=num_features, out_features=num_classes)
-
-# Replace the original last classification layer with the newly created layer
 mobilenet_model.classifier[-1] = new_classifier
 
 print("Model's New Output Layer:")
 print(mobilenet_model.classifier[-1])
 
-# Define loss and optimizer
+# Only parameters with requires_grad=True will be optimized
+# filter() ensures we only pass trainable parameters to the optimizer
 loss_function = torch.nn.CrossEntropyLoss()
-# Only optimize the parameters that require gradients for mobilenet_model
-optimizer = torch.optim.SGD(filter(lambda p: p.requires_grad, 
-                                   mobilenet_model.parameters()),
-                            lr=0.001)
+optimizer = torch.optim.SGD(
+    filter(lambda p: p.requires_grad, mobilenet_model.parameters()),
+    lr=0.001
+)
 
-# Number of epochs for new classifier head training
+# Train only the new head (1 epoch for demo)
 num_epochs = 1
-
-# Start the training.
 trained_model = helper_utils.training_loop(
-    model=mobilenet_model, 
-    trainloader=train_loader, 
-    valloader=val_loader, 
-    loss_function=loss_function, 
-    optimizer=optimizer, 
-    num_epochs=num_epochs, 
+    model=mobilenet_model,
+    trainloader=train_loader,
+    valloader=val_loader,
+    loss_function=loss_function,
+    optimizer=optimizer,
+    num_epochs=num_epochs,
     device=device
 )
 
-# Define a list of class names for the EMNIST digits (0-9).
 emnist_class_names = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-
-# Visualize the model's predictions on the validation images
 helper_utils.show_predictions(trained_model, val_loader, device, emnist_class_names)
 
-### ****** Strategy 2: Fine-Tuning (Train the Head and Top Layers) ******
 
-# ### Uncomment and execute the line below if you wish to print the model's architecture.
+# ==================== STRATEGY 2: FINE-TUNING ====================
+# KEY CONCEPT: Unfreeze the TOP (last) few layers of the feature extractor.
+# Train them along with the new head, using a VERY LOW learning rate.
+#
+# WHEN TO USE: Medium dataset, somewhat different task.
+#
+# WHY LOW LR? The pre-trained weights are already good. We want small
+# adjustments, not wholesale changes that destroy the learned features.
 
-print(trained_model)
+fine_tune_model = trained_model  # Start from Strategy 1's result
 
-# The model from the previous training stage
-fine_tune_model = trained_model
-
-# Unfreeze the parameters of the last block in the 'features' section
+# Unfreeze ONLY the last feature block
 for param in fine_tune_model.features[12].parameters():
     param.requires_grad = True
 
-# Verify that the parameters of an early block (e.g., features[0]) are frozen
-print(f"Parameters in features[0] are frozen:       {not fine_tune_model.features[0][0].weight.requires_grad}")
+# Verify what's frozen vs. trainable
+print(f"features[0] frozen:      {not fine_tune_model.features[0][0].weight.requires_grad}")   # Still frozen
+print(f"features[12] unfrozen:   {fine_tune_model.features[12][0].weight.requires_grad}")      # Now trainable
+print(f"classifier unfrozen:     {fine_tune_model.classifier[-1].weight.requires_grad}")        # Still trainable
 
-# Verify that the parameters of a late block (e.g., features[12]) are now unfrozen
-print(f"Parameters in features[12] are unfrozen:    {fine_tune_model.features[12][0].weight.requires_grad}")
-
-# Verify that the classifier head remains unfrozen and trainable
-print(f"Parameters in the classifier are unfrozen:  {fine_tune_model.classifier[-1].weight.requires_grad}")
-
-# Create a new optimizer that targets all trainable parameters
+# Use a MUCH LOWER learning rate for fine-tuning (10-100x smaller)
 optimizer = torch.optim.SGD(
     filter(lambda p: p.requires_grad, fine_tune_model.parameters()),
-    lr=1e-5  # A new, lower learning rate for fine-tuning
+    lr=1e-5  # 100x smaller than Strategy 1's LR
 )
 
-# Number of epochs for the fine-tuning stage
 num_epochs_fine_tune = 1
-
-# Continue training the model
 fine_tune_trained_model = helper_utils.training_loop(
     model=fine_tune_model,
     trainloader=train_loader,
@@ -182,35 +164,29 @@ fine_tune_trained_model = helper_utils.training_loop(
     device=device
 )
 
-# ### Uncomment and execute the line below if you wish to visualize predictions
-
-# # Visualize the model's predictions on the validation images
 helper_utils.show_predictions(fine_tune_trained_model, val_loader, device, emnist_class_names)
 
 
-### ****** Strategy 3: Full Retraining (Train the Entire Model) ******
+# ==================== STRATEGY 3: FULL RETRAINING ====================
+# KEY CONCEPT: Unfreeze EVERYTHING and train the whole model.
+#
+# WHEN TO USE: Large dataset, very different task from original training.
+#
+# WARNING: Still use a lower LR than training from scratch, because
+# the pre-trained weights are a good starting point.
 
-# The model from the previous fine-tuning stage
 full_retrain_model = fine_tune_trained_model
 
-# Unfreeze all parameters in the model
+# Unfreeze ALL parameters
 for param in full_retrain_model.parameters():
     param.requires_grad = True
 
+print(f"features[0] unfrozen: {full_retrain_model.features[0][0].weight.requires_grad}")  # Now trainable
 
-# Verify that an early layer is now unfrozen and trainable
-print(f"Parameters in features[0] are unfrozen: {full_retrain_model.features[0][0].weight.requires_grad}")
+# Moderate LR -- higher than fine-tuning, lower than training from scratch
+optimizer = torch.optim.SGD(full_retrain_model.parameters(), lr=1e-4)
 
-# The optimizer now targets all parameters in the model
-optimizer = torch.optim.SGD(
-    full_retrain_model.parameters(),
-    lr=1e-4
-)
-
-# Number of epochs for the full retraining stage
 num_epochs_full_retrain = 1
-
-# Continue training the entire model
 final_model = helper_utils.training_loop(
     model=full_retrain_model,
     trainloader=train_loader,
@@ -221,7 +197,4 @@ final_model = helper_utils.training_loop(
     device=device
 )
 
-# ### Uncomment and execute the line below if you wish to visualize predictions
-
-# # Visualize the model's predictions on the validation images
 helper_utils.show_predictions(final_model, val_loader, device, emnist_class_names)

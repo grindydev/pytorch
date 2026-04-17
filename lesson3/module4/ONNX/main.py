@@ -1,30 +1,32 @@
-# From PyTorch to ONNX
+"""
+Lesson 3 - Module 4: ONNX Export & Cross-Platform Deployment (ONNX/main.py)
+============================================================================
+WHAT YOU'LL LEARN:
+  * What ONNX (Open Neural Network Exchange) is and why it matters
+  * Exporting a PyTorch model to the ONNX format
+  * Running inference with ONNX Runtime (framework-independent)
+  * Converting ONNX to TensorFlow SavedModel (cross-framework portability)
+  * The full deployment pipeline: train in PyTorch -> export -> run anywhere
 
-# After investing significant effort to train a high-performing model, the next pivotal step is preparing it for deployment. In a real-world setting, your model needs to be efficient and capable of running on various platforms. However, a model is often a set of Python objects that only its native framework, like PyTorch, knows how to execute. This can make it incompatible with environments that cannot run Python or PyTorch directly, such as mobile apps or embedded devices.
+KEY CONCEPT:
+  A trained PyTorch model is a set of Python objects that only PyTorch understands.
+  ONNX is a universal format that lets your model run on:
+    - Mobile phones (iOS/Android)
+    - Web browsers (via ONNX.js)
+    - Embedded devices
+    - Other ML frameworks (TensorFlow, Caffe2, etc.)
+    - Optimized runtimes (ONNX Runtime, TensorRT)
 
-# This is where  **[ONNX (Open Neural Network Exchange)](https://onnx.ai)** becomes essential. ONNX is an open standard designed to represent machine learning models, enabling them to be used across different frameworks and runtimes. By converting your model to the ONNX format, you make it **portable** and unlock a wide range of deployment possibilities.
-
-# In this notebook, you will walk through the practical steps of this process. You will:
-# * Take a fully trained PyTorch model and export it to the ONNX format.
-
-# * Use the **ONNX Runtime** to perform inference with the newly converted `.onnx` file.
-
-# * As a further demonstration of ONNX's flexibility, an optional section will also guide you through converting the ONNX model to a TensorFlow representation and running inference with it.
-
-
+  DEPLOYMENT PIPELINE:
+    1. Train model in PyTorch
+    2. Export to ONNX format
+    3. Run anywhere with ONNX Runtime or convert to other frameworks
+"""
 
 import sys
 import warnings
 
-# # Redirect stderr to a black hole to catch other potential messages
-# class BlackHole:
-#     def write(self, message):
-#         pass
-#     def flush(self):
-#         pass
-# sys.stderr = BlackHole()
-
-# Ignore Python-level UserWarnings
+# Ignore annoying warnings so the output is clean
 warnings.filterwarnings("ignore", category=UserWarning)
 
 import numpy as np
@@ -36,35 +38,26 @@ import torchvision.models as tv_models
 import helper_utils
 from pathlib import Path
 
-# ====================== FIX FOR OPTIONAL TF CONVERSION (MODERN & CLEAN) ======================
-# The old "onnx_tf" package is broken on Python 3.12 (requires deprecated tensorflow-addons).
-# We now use the modern, actively maintained "onnx2tf" library instead.
-# This achieves the exact same goal of the lab (ONNX → native TensorFlow SavedModel)
-# but without any more import errors.
-# Run this once in your terminal (inside tf_env):
-#    pip uninstall onnx-tf -y
-#    pip install onnx2tf
-# =======================================================================================
+# Modern replacement for the old (broken) onnx_tf package
+from onnx2tf import convert
 
-from onnx2tf import convert   # ← modern replacement for onnx_tf
 
-# ====================== DEVICE SETUP (optimized for your Mac) ======================
-# LEARNING: On Apple Silicon (M1/M2/M3/M4), MPS (Metal) gives huge speed boost.
-# The original lab code only checked CUDA — we improved it for real macOS performance.
+# ==================== STEP 1: DEVICE SETUP (Mac-friendly) ====================
+# LEARNING: On Apple Silicon Macs we should use MPS (Metal GPU) for speed.
 if torch.cuda.is_available():
     DEVICE = torch.device('cuda')
 elif torch.backends.mps.is_available():
     DEVICE = torch.device('mps')
-    print("🚀 Using MPS (Apple Silicon GPU) — much faster on your Mac!")
+    print("🚀 Using MPS — Apple Silicon GPU acceleration (much faster on your Mac!)")
 else:
     DEVICE = torch.device('cpu')
 print(f"Using Device: {DEVICE}")
-# =======================================================================================
 
-# ====================== DATA LOADING AND PREPARATION ======================
-# LEARNING: Real-world image datasets are folder-based (one folder = one class).
-# helper_utils helps you inspect and load data with proper train/val split + augmentations.
-dataset_path = Path.cwd() / "data/fruit_and_vegetable_subset"   # make sure this folder exists next to main.py
+
+# ==================== STEP 2: DATA LOADING & VISUALIZATION ====================
+# LEARNING: Real-world datasets are folder-based (one folder = one class).
+# The helper functions handle train/val split + data augmentation automatically.
+dataset_path = Path.cwd() / "data/fruit_and_vegetable_subset"
 helper_utils.dataset_images_per_class(dataset_path)
 
 classes = [
@@ -80,11 +73,11 @@ classes = [
 train_loader, val_loader = helper_utils.get_dataloaders(dataset_path)
 helper_utils.show_image_grid(train_loader, classes)
 print("✅ Data loaded and visualized")
-# =======================================================================================
 
-# ====================== MODEL PREPARATION (Transfer Learning) ======================
-# LEARNING: Transfer learning = take a strong pre-trained backbone (ResNet18) 
-# and only retrain the final layer. This is how professionals build models fast.
+
+# ==================== STEP 3: MODEL PREPARATION (Transfer Learning) ====================
+# LEARNING: Transfer learning = reuse a powerful pre-trained backbone (ResNet18)
+# and only train the final layer. This is the standard way to build models fast.
 resnet18_model = tv_models.resnet18(weights=None)
 
 weights_path = Path.cwd() / 'data/pretrained_resnet18_weights/resnet18-f37072fd.pth'
@@ -94,47 +87,59 @@ resnet18_model.load_state_dict(state_dict)
 num_classes = len(classes)
 model = helper_utils.adapt_model_for_transfer_learning(resnet18_model, num_classes)
 
-print("✅ ResNet18 loaded + adapted for 28 classes")
-# =======================================================================================
+print("✅ ResNet18 loaded with pre-trained weights + adapted for 28 classes")
 
-# ====================== MODEL TRAINING ======================
+
+# ==================== STEP 4: TRAINING (1 epoch is enough) ====================
 # LEARNING: With transfer learning, even 1 epoch gives >75% accuracy.
-# In real projects you would train longer and add more techniques.
+# In real projects you would train longer + use learning rate scheduling, etc.
 num_epochs = 1
 trained_model = helper_utils.training_loop(model, train_loader, val_loader, num_epochs, DEVICE)
-print("✅ Training finished — model is ready!")
-# =======================================================================================
+print("✅ Training finished — model is ready for deployment!")
 
-# ====================== PyTorch → ONNX EXPORT ======================
-# LEARNING: ONNX is the universal format that makes your model runnable
-# anywhere (ONNX Runtime, TensorFlow, mobile, edge devices, browsers, etc.).
-# This is the core skill of the entire lab.
+
+# ==================== STEP 5: EXPORT PYTORCH → ONNX ====================
+# LEARNING: This is the most important step of the lab.
+# torch.onnx.export traces the model with a dummy input and saves it as .onnx
+
+model_path = Path.cwd() / 'data/ONNX'
+model_path.mkdir(parents=True, exist_ok=True)          # Create folder if it doesn't exist
+print(f"✅ Export directory ready: {model_path}")
+
 trained_model.eval()
 print("\nExporting PyTorch model to ONNX...")
 
 dummy_input = torch.randn(1, 3, 224, 224, device=DEVICE)
 
 torch.onnx.export(
-    trained_model,
-    dummy_input,
-    "fruit_veg_model.onnx",
-    export_params=True,
-    opset_version=11,                    # chosen for maximum compatibility
-    do_constant_folding=True,
+    trained_model,                              # model to export
+    dummy_input,                                # dummy input for tracing
+    model_path / "fruit_veg_model.onnx",        # output file
+    export_params=True,                         # save trained weights
+    opset_version=13,                           # stable version (avoids old bugs)
+    do_constant_folding=True,                   # optimization
     input_names=['input'],
     output_names=['output'],
-    dynamic_axes={'input': {0: 'batch_size'}, 'output': {0: 'batch_size'}}
+    dynamic_axes={                              # allow different batch sizes
+        'input': {0: 'batch_size'},
+        'output': {0: 'batch_size'}
+    }
 )
-print("✅ Exported as fruit_veg_model.onnx")
-# =======================================================================================
+print("✅ Exported successfully as fruit_veg_model.onnx")
 
-# ====================== INFERENCE WITH ONNX RUNTIME ======================
-# LEARNING: ONNX Runtime is super fast and runs everywhere. 
-# This shows you are no longer locked into PyTorch.
-ort_session = ort.InferenceSession("fruit_veg_model.onnx", providers=['CPUExecutionProvider'])
+
+# ==================== STEP 6: INFERENCE WITH ONNX RUNTIME ====================
+# LEARNING: ONNX Runtime runs the model without PyTorch at all.
+# This is what makes ONNX so powerful for production deployment.
+
+ort_session = ort.InferenceSession(
+    model_path / "fruit_veg_model.onnx",
+    providers=['CPUExecutionProvider']
+)
 
 input_name = ort_session.get_inputs()[0].name
 
+# Take 9 images from validation set for nice visualization
 val_iter = iter(val_loader)
 images, labels = next(val_iter)
 input_data = images[:9].cpu().numpy()
@@ -145,48 +150,63 @@ predictions = ort_outputs[0]
 
 print("Displaying predictions from ONNX Runtime...\n")
 helper_utils.show_prediction_grid(input_data, true_labels, predictions, classes)
-print("✅ ONNX Runtime inference done!")
-# =======================================================================================
+print("✅ ONNX Runtime inference completed (no PyTorch needed!)")
 
-# ====================== (OPTIONAL) ONNX → NATIVE TENSORFLOW ======================
-# LEARNING: onnx2tf is the modern replacement for the old onnx_tf library used in the lab.
-# The parameter name changed in newer versions of onnx2tf.
-print("\n=== OPTIONAL: ONNX → Native TensorFlow (using modern onnx2tf) ===")
-print("Converting ONNX to TensorFlow SavedModel...")
+
+# ==================== STEP 7: ONNX → NATIVE TENSORFLOW (TFLite) ====================
+# LEARNING: onnx2tf converts ONNX to native TensorFlow format.
+# IMPORTANT: Modern onnx2tf creates .tflite files (very efficient),
+# not the old SavedModel with saved_model.pb. We load the .tflite file.
+
+print("\n=== OPTIONAL: ONNX → Native TensorFlow (TFLite) ===")
+print("Converting ONNX to TensorFlow Lite model...")
 
 convert(
-    input_onnx_file_path="fruit_veg_model.onnx",
-    output_folder_path="./fruit_veg_tf_savedmodel",
-    output_signaturedefs=True,                    # creates serving_default signature (needed for lab)
-    keep_ncw_or_nchw_or_ncdhw_input_names=['input']   # ← corrected parameter name (this was the error)
+    input_onnx_file_path=model_path / "fruit_veg_model.onnx",
+    output_folder_path=model_path / "fruit_veg_tf_savedmodel",
+    output_signaturedefs=True,
+    keep_ncw_or_nchw_or_ncdhw_input_names=['input']
 )
 
-print("✅ TensorFlow SavedModel exported to ./fruit_veg_tf_savedmodel")
+print("✅ Conversion completed — TFLite model created")
 
-# Test the native TF model
+# Load and run the TFLite model (this is the native TensorFlow way)
+tflite_path = model_path / "fruit_veg_tf_savedmodel" / "fruit_veg_model_float32.tflite"
+
+interpreter = tf.lite.Interpreter(model_path=str(tflite_path))
+interpreter.allocate_tensors()
+
+input_details = interpreter.get_input_details()
+output_details = interpreter.get_output_details()
+
+# Use the same batch of images for fair comparison
 val_iter = iter(val_loader)
 images, labels = next(val_iter)
 input_data = images[:9].cpu().numpy()
 true_labels = labels[:9].numpy()
 
-loaded_tf_model = tf.saved_model.load("./fruit_veg_tf_savedmodel")
-inference_func = loaded_tf_model.signatures["serving_default"]
+# Run inference with TFLite
+tf_predictions = []
+for i in range(input_data.shape[0]):
+    interpreter.set_tensor(input_details[0]['index'],
+                           np.expand_dims(input_data[i], axis=0).astype(np.float32))
+    interpreter.invoke()
+    pred = interpreter.get_tensor(output_details[0]['index'])
+    tf_predictions.append(pred[0])
 
-input_tensor = tf.convert_to_tensor(input_data, dtype=tf.float32)
-predictions_dict = inference_func(input=input_tensor)
-tf_predictions_np = predictions_dict['output'].numpy()
+tf_predictions_np = np.array(tf_predictions)
 
-print("Displaying predictions from NATIVE TensorFlow model...\n")
+print("Displaying predictions from NATIVE TensorFlow Lite model...\n")
 helper_utils.show_prediction_grid(input_data, true_labels, tf_predictions_np, classes)
-print("✅ ONNX → TensorFlow conversion completed!")
-# =======================================================================================
+print("✅ ONNX → TensorFlow Lite conversion completed!")
 
+
+# ==================== FINAL SUMMARY ====================
 print("\n🎉 LAB COMPLETE!")
 print("You have successfully:")
-print("   • Used transfer learning with ResNet18")
-print("   • Exported PyTorch → ONNX")
-print("   • Ran inference with ONNX Runtime")
-print("   • Converted ONNX → native TensorFlow (with modern tools)")
-print("This workflow is used daily in real production ML deployments!")
-
-
+print("   • Trained a model using transfer learning (ResNet18)")
+print("   • Exported PyTorch model to ONNX format")
+print("   • Ran inference with ONNX Runtime (framework-independent)")
+print("   • Converted ONNX to native TensorFlow Lite")
+print("\nThis exact workflow is used in real production deployments!")
+print("Your model is now portable and can run anywhere.")
