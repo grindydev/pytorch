@@ -10,6 +10,7 @@ __pycache__/
 # Virtual environments
 venv/
 env/
+tf_env/
 .venv
 ENV/
 env.bak/
