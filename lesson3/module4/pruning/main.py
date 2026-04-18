@@ -1,12 +1,25 @@
-# 1. **Unstructured Pruning**:
-#     * **Best Practices**: Unstructured pruning is often used when you want to maximize sparsity while maintaining flexibility. It is best suited for models where the architecture should remain unchanged, and you only need to prune less important weights.
-#     * **Use Cases**: This technique is useful in scenarios where hardware support for sparsity is present, allowing the sparsely pruned model to be efficiently executed. It's suitable for environments like server-side deployments where computational resources are relatively abundant but memory savings are crucial.
-# 2. **Structured Pruning**:
-#     * **Best Practices**: Use structured pruning when you need to improve inference speed and reduce the model's memory footprint effectively. This technique can significantly accelerate the model since entire structures like channels or neurons are removed.
-#     * **Use Cases**: It's ideal for edge devices or mobile applications where computational resources are limited, as structured pruning can help maintain a balance between model size and accuracy while enhancing computational efficiency.
-# 3. **Global Pruning**:
-#     * **Best Practices**: Global pruning is advantageous when aiming for a consistent level of sparsity across multiple layers. It minimizes the risk of over-pruning critical parts of the model by evaluating the importance of weights globally rather than locally.
-#     * **Use Cases**: This approach is beneficial in situations where the overall model performance is more critical than the performance of individual layers. It's particularly effective for creating uniformly sparse models that can adapt to various processing environments without heavily compromising accuracy.
+"""
+Lesson 3 - Module 4: Pruning -- Removing Unnecessary Weights
+==============================================================
+WHAT YOU'LL LEARN:
+  * Unstructured pruning: zeroing out individual weights by magnitude
+  * Structured pruning: removing entire channels/neurons
+  * Global pruning: distributing sparsity across all layers uniformly
+  * Making pruning permanent with prune.remove()
+  * How pruning reduces model size with minimal accuracy loss
+
+KEY CONCEPT:
+  PRUNING sets weights to zero, creating a sparse model:
+  - L1 Unstructured: removes the smallest individual weights (by absolute value)
+  - Ln Structured: removes entire output channels (rows of the weight matrix)
+  - Global: evaluates all weights together for consistent sparsity
+
+  Pruning does NOT change tensor shapes -- it replaces weights with zeros.
+  To get actual speedup, you need hardware that accelerates sparse operations,
+  or you must export to a format that exploits sparsity.
+
+  WORKFLOW: prune -> remove (make permanent) -> fine-tune to recover accuracy
+"""
 
 import torch
 import torch.nn as nn

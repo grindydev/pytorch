@@ -1,3 +1,23 @@
+"""
+Lesson 3 - Module 3: Transformer Encoder for Text Classification
+=================================================================
+WHAT YOU'LL LEARN:
+  * Building a full Transformer encoder from scratch
+  * EncoderBlock: LayerNorm + Multi-Head Attention + FFN + residual connections
+  * Positional encoding: sinusoidal patterns that encode token positions
+  * Using the Transformer encoder for a text classification task
+  * Pre-LayerNorm vs Post-LayerNorm architecture
+
+KEY CONCEPT:
+  A TRANSFORMER ENCODER consists of N stacked encoder blocks. Each block has:
+    1. Multi-Head Self-Attention: each token attends to all other tokens
+    2. Feed-Forward Network: position-wise nonlinear transformation
+    3. Residual connections + Layer Normalization: for stable, deep training
+
+  Unlike RNNs (which process tokens sequentially), Transformers process ALL
+  tokens in parallel. This makes them much faster on modern hardware.
+"""
+
 import math
 import random
 import re

@@ -1,3 +1,29 @@
+"""
+Lesson 3 - Module 4: Quantization -- Reducing Precision for Faster Inference
+=============================================================================
+WHAT YOU'LL LEARN:
+  * Dynamic Quantization: converting FP32 weights to INT8 at runtime
+  * Static Quantization: calibrating with real data, then converting
+  * Quantization-Aware Training (QAT): training with fake quantization
+  * Layer fusion: combining Conv+BN+ReLU into single operations
+  * Comparing model size, inference speed, and accuracy across methods
+
+KEY CONCEPT:
+  QUANTIZATION reduces the precision of model weights and/or activations:
+    FP32 (32-bit float) -> INT8 (8-bit integer) = 4x smaller, faster on CPU
+
+  Three approaches (increasing complexity and accuracy):
+    1. DYNAMIC: Convert weights to INT8, compute activations in FP32 at runtime
+       - Simplest, no calibration needed, good for LSTMs/Transformers
+    2. STATIC: Calibrate with real data to determine activation ranges, then convert
+       - Best for CNNs, requires calibration dataset
+    3. QAT: Simulate quantization during training so the model adapts to lower precision
+       - Highest accuracy, requires short fine-tuning
+
+  QUANTSTUB / DEQUANTSTUB: Wrappers that mark where quantization begins and ends
+  in the model's forward pass.
+"""
+
 from pathlib import Path
 import torch
 import torch.nn as nn

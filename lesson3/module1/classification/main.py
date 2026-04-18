@@ -1,3 +1,18 @@
+"""
+Lesson 3 - Module 1: Classification -- Multi-Model Comparison on Clothing Dataset
+==================================================================================
+WHAT YOU'LL LEARN:
+  * Comparing different CNN architectures on the same task
+  * Clothing dataset classification (multi-class fashion items)
+  * Using torchinfo to inspect model architecture and parameter counts
+  * Transfer learning with pre-trained models for fashion classification
+
+KEY CONCEPT:
+  This exercise puts multiple architectures head-to-head on the same dataset
+  so you can compare accuracy, speed, and model size. Understanding these
+  trade-offs is critical for choosing the right architecture for a given task.
+"""
+
 import torch.nn as nn
 import torch.nn.functional as F
 import random

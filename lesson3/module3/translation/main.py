@@ -1,3 +1,23 @@
+"""
+Lesson 3 - Module 3: Machine Translation with Encoder-Decoder Transformer
+==========================================================================
+WHAT YOU'LL LEARN:
+  * Full encoder-decoder Transformer architecture for seq2seq tasks
+  * Building vocabularies for source and target languages
+  * Cross-attention: decoder attending to encoder outputs
+  * Training a translation model from English to a target language
+  * The complete translation pipeline: tokenize -> encode -> decode -> detokenize
+
+KEY CONCEPT:
+  MACHINE TRANSLATION uses an encoder-decoder architecture:
+    1. ENCODER: processes the source sentence (English) into contextual representations
+    2. DECODER: generates the target sentence word by word, attending to both:
+       - Its own previous outputs (masked self-attention)
+       - The encoder's representations (cross-attention)
+
+  This is the architecture from the original "Attention Is All You Need" paper.
+"""
+
 import torch
 import torch.nn as nn
 import torch.optim as optim

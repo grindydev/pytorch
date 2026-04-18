@@ -1,3 +1,24 @@
+"""
+Lesson 3 - Module 3: Transformer Decoder Block
+=================================================
+WHAT YOU'LL LEARN:
+  * How Transformer DECODERS differ from encoders
+  * Causal (autoregressive) masking: preventing attention to future tokens
+  * The decoder block architecture: masked self-attention + cross-attention + FFN
+  * How autoregressive generation works (predicting one token at a time)
+  * Key differences: Encoder sees all tokens; Decoder sees only past tokens
+
+KEY CONCEPT:
+  CAUSAL MASKING ensures the decoder can only attend to tokens it has already
+  generated. This is essential for autoregressive generation (like GPT):
+  - When generating token 3, you can see tokens 0, 1, 2 but NOT 4, 5, ...
+  - The mask sets future positions to -inf so softmax gives them 0 probability
+
+  Encoder vs Decoder:
+    Encoder: Bidirectional attention (sees all positions) -- for understanding
+    Decoder: Causal attention (sees only past)          -- for generation
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

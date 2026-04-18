@@ -1,13 +1,25 @@
-import os
-import torch
-import torch.nn as nn
-import torch.nn.functional as F
-import torch.optim as optim
-from torchvision import transforms
-import torchinfo
+"""
+Lesson 3 - Module 1: DenseNet -- Densely Connected Networks
+=============================================================
+WHAT YOU'LL LEARN:
+  * What dense connections are and how they differ from ResNet skip connections
+  * Implementing a DenseNet block where each layer receives ALL previous outputs
+  * The growth rate hyperparameter and how it controls feature accumulation
+  * Training on the UC Merced Land Use dataset (21-class aerial scene recognition)
+  * Transition layers for dimensionality reduction between dense blocks
 
-import helper_utils
-from pathlib import Path
+KEY CONCEPT:
+  DENSE CONNECTIONS: Unlike ResNet (which adds the skip connection), DenseNet
+  CONCATENATES all previous layer outputs. Each layer receives the feature maps
+  from ALL preceding layers, not just the previous one. This encourages feature
+  reuse and reduces the number of parameters needed.
+
+  ResNet:    output = F(x) + x            (addition)
+  DenseNet:  output = [x, F(x)]            (concatenation)
+
+  GROWTH RATE: Each layer produces k new feature maps. Total features grow by k
+  per layer, so the network gets progressively wider.
+"""
 
 # Set seed
 SEED = 42

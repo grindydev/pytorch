@@ -1,19 +1,22 @@
-import os
+"""
+Lesson 3 - Module 2: Saliency Maps & Class Activation Maps (CAM)
+==================================================================
+WHAT YOU'LL LEARN:
+  * Saliency maps: which pixels most influence the model's prediction
+  * Grad-CAM: highlighting the spatial regions the model focuses on
+  * Understanding model decision-making through visual explanations
+  * Why interpretability matters for trust and debugging in production
 
-import cv2
-import matplotlib.cm as cm
-import matplotlib.pyplot as plt
-import numpy as np
-from PIL import Image
+KEY CONCEPT:
+  SALIENCY MAPS compute the gradient of the output with respect to the input
+  image. High gradient = that pixel strongly influences the prediction.
 
-from skimage.transform import resize
-import torch
-import torch.nn as nn
-import torchvision.models as tv_models
-import torchvision.transforms as transforms
-from pathlib import Path
+  GRAD-CAM uses the gradients flowing into the final convolutional layer
+  to produce a heatmap showing which image regions were most important
+  for the model's classification decision.
 
-import helper_utils
+  These tools answer: "Why did the model predict this class?"
+"""
 
 # Set device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")

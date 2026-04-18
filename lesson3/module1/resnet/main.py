@@ -1,3 +1,24 @@
+"""
+Lesson 3 - Module 1: ResNet -- Residual Networks for Image Classification
+==========================================================================
+WHAT YOU'LL LEARN:
+  * What residual (skip) connections are and why they enable very deep networks
+  * Implementing a ResNet building block (BasicBlock) from scratch
+  * Stacking blocks into a full ResNet architecture
+  * Training on the Aerial Landscapes dataset (multi-class scene recognition)
+  * How skip connections solve the vanishing gradient problem
+
+KEY CONCEPT:
+  RESIDUAL CONNECTIONS (skip connections): Instead of learning the direct
+  mapping H(x), ResNet learns the RESIDUAL: F(x) = H(x) - x, then outputs
+  F(x) + x. This makes it easier for gradients to flow through very deep
+  networks (50+ layers) because the skip connection provides a "gradient highway"
+  that bypasses all intermediate layers.
+
+  Without skip connections: signal degrades as it passes through many layers
+  With skip connections:    signal can flow directly via the shortcut path
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F

@@ -1,3 +1,26 @@
+"""
+Lesson 3 - Module 1: Siamese Network -- Signature Verification
+================================================================
+WHAT YOU'LL LEARN:
+  * What Siamese networks are: two identical branches sharing weights
+  * Contrastive loss: learning by comparing pairs of inputs
+  * Triplet loss: learning from anchor-positive-negative triplets
+  * Signature verification as a practical application (detecting forgeries)
+  * How to build a dataset of image pairs/triplets for similarity learning
+
+KEY CONCEPT:
+  A SIAMESE NETWORK takes TWO inputs and produces embeddings for each. The
+  network learns to map similar inputs close together and dissimilar inputs
+  far apart in embedding space. Both branches share the SAME weights.
+
+  WHY NOT JUST CLASSIFY? Because there may be thousands of individuals, and
+  new ones can be added without retraining. The model learns a DISTANCE
+  function, not a fixed set of classes.
+
+  USE CASES: Signature verification, face recognition, fingerprint matching,
+  product similarity, document deduplication
+"""
+
 import glob
 import os
 import random

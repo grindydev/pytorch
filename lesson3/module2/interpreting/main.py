@@ -1,3 +1,19 @@
+"""
+Lesson 3 - Module 2: Interpreting CNNs -- Visualizing What the Model Sees
+============================================================================
+WHAT YOU'LL LEARN:
+  * Visualizing convolutional filters (what patterns each filter detects)
+  * Understanding feature maps (how an image is represented at each layer)
+  * Max pooling visualization (how spatial information is compressed)
+  * How to hook into model layers to extract intermediate activations
+
+KEY CONCEPT:
+  Neural networks are often called "black boxes," but we CAN look inside.
+  By visualizing the filters and feature maps, we can understand WHAT
+  patterns the model has learned to detect (edges, textures, shapes).
+  This helps debug models and build trust in their predictions.
+"""
+
 import matplotlib.pyplot as plt
 import numpy as np
 from PIL import Image

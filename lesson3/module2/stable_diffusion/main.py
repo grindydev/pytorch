@@ -1,16 +1,27 @@
+"""
+Lesson 3 - Module 2: Stable Diffusion -- Image Generation with Denoising
+==========================================================================
+WHAT YOU'LL LEARN:
+  * How diffusion models work: adding noise then learning to remove it
+  * DDPM (Denoising Diffusion Probabilistic Models) pipeline
+  * Stable Diffusion: text-to-image generation with latent diffusion
+  * How to load and run pre-trained diffusion pipelines from Hugging Face
+  * The forward (noise-adding) and reverse (denoising) process
+
+KEY CONCEPT:
+  DIFFUSION MODELS work in two phases:
+  1. FORWARD PROCESS: Gradually add Gaussian noise to an image until it's
+     pure noise (this is fixed, not learned)
+  2. REVERSE PROCESS: A neural network learns to predict and remove the
+     noise, step by step, eventually generating a clean image
+
+  STABLE DIFFUSION does this in a compressed "latent space" (not pixel space),
+  making it much more efficient. A text encoder guides the denoising so the
+  generated image matches the text prompt.
+"""
+
 import sys
 import warnings
-
-# # Redirect stderr to a black hole to catch other potential messages
-# class BlackHole:
-#     def write(self, message):
-#         pass
-#     def flush(self):
-#         pass
-# sys.stderr = BlackHole()
-
-# # Ignore Python-level UserWarnings
-# warnings.filterwarnings("ignore", category=UserWarning)
 
 from diffusers import StableDiffusionPipeline, DDPMPipeline
 import matplotlib.pyplot as plt

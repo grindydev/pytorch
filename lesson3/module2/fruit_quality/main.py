@@ -1,3 +1,18 @@
+"""
+Lesson 3 - Module 2: Fruit Quality Classification with Diffusion-Augmented Data
+==================================================================================
+WHAT YOU'LL LEARN:
+  * Practical application: classifying fruit as healthy or rotten
+  * Using forward hooks to capture intermediate layer activations
+  * Applying pre-trained models to real-world quality control tasks
+  * Generating synthetic training data with diffusion models
+
+KEY CONCEPT:
+  This is a practical application combining transfer learning (ResNet-50 for
+  fruit classification) with diffusion model data augmentation. Forward hooks
+  let you tap into any layer's output without modifying the model code.
+"""
+
 import torch
 from torch.nn import functional as F
 
