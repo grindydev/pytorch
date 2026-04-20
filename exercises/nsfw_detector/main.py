@@ -10,6 +10,8 @@ from data_loader import get_dataloaders
 from cnn import CNNBlock, SimpleCNN
 import helper_utils
 
+NUM_EPOCHS = 5
+
 train_loader, val_loader, test_loader, num_classes = get_dataloaders(
     batch_size=32,
     val_fraction=0.15,
@@ -171,12 +173,24 @@ trained_model, training_metrics = training_loop(
     val_loader=val_loader,
     loss_function=loss_function,
     optimizer=optimizer,
-    num_epochs=5,
+    num_epochs=NUM_EPOCHS,
     device=device
 )
 
 # Plot training curves (loss and accuracy over epochs)
 helper_utils.plot_training_metrics(training_metrics)
 
+# ==================== SAVE THE BEST MODEL TO DISK ====================
+model_save_path = "best_simple_cnn.pth"   # you can change the name if you want
+
+torch.save({
+    'model_state_dict': trained_model.state_dict(),   # best weights
+    'num_classes': num_classes,
+    'val_accuracy': max(training_metrics[2]),         # best val accuracy
+    'epoch': training_metrics[2].index(max(training_metrics[2])) + 1
+}, model_save_path)
+
+print(f"\n✅ Best model successfully saved to '{model_save_path}'")
+print(f"   Validation Accuracy: {max(training_metrics[2]):.2f}%")
 
 
