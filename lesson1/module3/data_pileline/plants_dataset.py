@@ -66,7 +66,7 @@ class PlantsDataset(Dataset):
         ### START CODE HERE ###
 
         # Load labels from the DataFrame using the `load_labels` method
-        self.labels = self.load_labels( self.df_info)
+        self.labels = self.load_labels(self.df_info)
 
         # Create a mapping from label integers to class names using the `read_classname` method
         self.class_names = self.read_classname()
