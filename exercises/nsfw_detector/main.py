@@ -1,81 +1,182 @@
 # ============================================================
-# main.py - OPTIMIZED FOR YOUR GTX 1650 + Ryzen 5 5600X
+# main.py - CONFIG-DRIVEN VERSION (Test Mode + Train Mode)
 # ============================================================
+#
+# EDUCATIONAL VERSION - Designed for you to learn PyTorch training!
+#
+# This script is now a complete, clean, and flexible training pipeline.
+# Everything important is controlled from the CONFIG dictionary at the top.
+# Every major section has detailed comments explaining:
+#   • WHAT the code does
+#   • WHY we do it this way
+#   • HOW it helps learning / performance
+#
+# Key learning concepts covered:
+#   • Config-driven design (easy to switch between testing and full training)
+#   • Immediate best-model checkpointing
+#   • Device-aware training (Mac Mini MPS vs Ubuntu GTX 1650)
+#   • Mixed Precision (AMP) for speed
+#   • Subset training for fast testing
+#   • Early stopping + Cosine LR scheduler
 
 import copy
 import torch
 from torch import nn
 from torch import optim
 from torch.amp import autocast, GradScaler
+from torch.utils.data import Subset, DataLoader
 
 from data_loader import get_dataloaders
 from cnn import SimpleCNN
 import helper_utils
 
-# ==================== HYPERPARAMETERS (Tuned for your PC) ====================
-NUM_EPOCHS = 40                    # More epochs = much better accuracy
-BATCH_SIZE = 64                    # Best size for GTX 1650 4GB VRAM
-LEARNING_RATE = 1e-3
-WEIGHT_DECAY = 0.05
-LABEL_SMOOTHING = 0.1              # Helps accuracy on your GPU
+# ==================== CONFIG (EDIT ONLY THIS SECTION) ====================
+# This is the only place you need to change settings.
+# It makes the code very readable and reusable across your Mac Mini and Ubuntu PC.
+CONFIG = {
+    "mode": "test",                    # ← Change to "train" when you want full training on Ubuntu
+                                       # "test"  = fast development on Mac Mini
+                                       # "train" = full serious training on GTX 1650
 
+    "device": "auto",                  # "auto", "cuda", "mps", or "cpu"
+                                       # "auto" is recommended - it picks the best available hardware
+
+    "val_fraction": 0.15,              # Fraction of dataset used for validation (15%)
+    "test_fraction": 0.2,              # Fraction of dataset used for testing (20%)
+
+    # Settings used when mode = "test" (fast development)
+    "test": {
+        "num_epochs": 5,               # Very few epochs so you can test changes quickly
+        "train_data_fraction": 0.25,   # Use only 25% of training images → much faster on Mac
+        "batch_size": 32,              # Smaller batch fits easily in Mac memory
+        "patience": 3                  # Stop early if no improvement
+    },
+
+    # Settings used when mode = "train" (full training)
+    "train": {
+        "num_epochs": 40,              # Enough epochs for the model to learn well
+        "train_data_fraction": 1.0,    # Use 100% of the training data
+        "batch_size": 64,              # Larger batch = better GPU utilization on GTX 1650
+        "patience": 8                  # More patience during long training
+    }
+}
+
+# ==================== APPLY CONFIG (you don't need to change anything below) ====================
+MODE = CONFIG["mode"]
+SETTINGS = CONFIG[MODE]
+
+NUM_EPOCHS = SETTINGS["num_epochs"]
+TRAIN_DATA_FRACTION = SETTINGS["train_data_fraction"]
+BATCH_SIZE = SETTINGS["batch_size"]
+PATIENCE = SETTINGS["patience"]
+VAL_FRACTION = CONFIG["val_fraction"]
+TEST_FRACTION = CONFIG["test_fraction"]
+
+# File where the best model will be saved (updated live during training)
+BEST_MODEL_PATH = f"best_simple_cnn_{MODE}.pth"
+
+print(f"🔧 CONFIG LOADED → Running in **{MODE.upper()} MODE**")
+print(f"   Best model file: {BEST_MODEL_PATH} (saved immediately when improved)")
+
+# ==================== DEVICE SETUP ====================
+# Why this matters: You can develop on Mac Mini (MPS) and train on Ubuntu (CUDA)
+# without changing any code except the CONFIG.
+if CONFIG["device"] == "auto":
+    if torch.cuda.is_available():
+        device = torch.device("cuda")
+        is_cuda = True
+        torch.backends.cudnn.benchmark = True          # Speeds up convolution operations on NVIDIA
+        print("🚀 Auto-detected NVIDIA GPU (GTX 1650) → using CUDA")
+    elif torch.backends.mps.is_available():
+        device = torch.device("mps")
+        is_cuda = False
+        print("🍎 Auto-detected Apple Silicon → using MPS")
+    else:
+        device = torch.device("cpu")
+        is_cuda = False
+        print("⚠️  Auto-detected CPU only")
+else:
+    # User forced a specific device from CONFIG
+    device = torch.device(CONFIG["device"])
+    is_cuda = (CONFIG["device"] == "cuda")
+    print(f"✅ Using forced device from CONFIG: {device}")
+
+# ==================== LOAD DATA ====================
+# get_dataloaders() is from your data_loader.py
+# We pass the fractions from CONFIG so you can control dataset split easily.
 train_loader, val_loader, test_loader, num_classes = get_dataloaders(
     batch_size=BATCH_SIZE,
-    val_fraction=0.15,
-    test_fraction=0.2,
+    val_fraction=VAL_FRACTION,
+    test_fraction=TEST_FRACTION
 )
 
-print(f"✅ Using batch size {BATCH_SIZE} (optimized for GTX 1650 4GB)")
+# In test mode we create a small subset of training data to make experiments fast.
+if TRAIN_DATA_FRACTION < 1.0:
+    print(f"   → Fast test mode: using only {int(TRAIN_DATA_FRACTION*100)}% of training data")
+    full_dataset = train_loader.dataset
+    subset_size = int(TRAIN_DATA_FRACTION * len(full_dataset))
+    small_dataset = Subset(full_dataset, list(range(subset_size)))
+    
+    train_loader = DataLoader(
+        small_dataset,
+        batch_size=BATCH_SIZE,
+        shuffle=True,
+        num_workers=4,          # Good number for both Mac and Linux
+        pin_memory=is_cuda      # Only useful on CUDA (speeds up data transfer to GPU)
+    )
 
-# ==================== DEVICE & SPEED OPTIMIZATIONS ====================
-if torch.cuda.is_available():
-    device = torch.device("cuda")
-    torch.backends.cudnn.benchmark = True        # Big speed boost on GTX 1650
-    print("🚀 Using NVIDIA GTX 1650 with cuDNN benchmark + Mixed Precision")
-elif torch.backends.mps.is_available():
-    device = torch.device("mps")
-    print("Using Apple MPS")
-else:
-    device = torch.device("cpu")
-    print("Using CPU (slow)")
+print(f"✅ Final training set size: {len(train_loader.dataset)} images")
 
 # ==================== MODEL, LOSS, OPTIMIZER, SCHEDULER ====================
 model = SimpleCNN(num_classes=num_classes)
 
-loss_function = nn.CrossEntropyLoss(label_smoothing=LABEL_SMOOTHING)
+# CrossEntropyLoss with label smoothing prevents the model from becoming over-confident
+loss_function = nn.CrossEntropyLoss(label_smoothing=0.1)
 
-optimizer = optim.AdamW(model.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DECAY)
+# AdamW is better than Adam when using weight decay (stronger regularization)
+optimizer = optim.AdamW(model.parameters(), lr=1e-3, weight_decay=0.05)
 
+# Cosine Annealing gradually reduces learning rate → helps converge better
 scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=NUM_EPOCHS, eta_min=1e-6)
 
-scaler = GradScaler()                                 # Mixed Precision scaler
+# ==================== MIXED PRECISION SETUP ====================
+# Mixed Precision (AMP) makes training much faster and uses less memory on GPU
+use_amp = is_cuda                                      # Full AMP only works reliably on CUDA
+scaler = GradScaler() if use_amp else None
 
-# Optional: torch.compile (extra speed on PyTorch 2.0+)
+# torch.compile() can give extra speed (PyTorch 2.0+ feature)
 try:
-    model = torch.compile(model, mode="reduce-overhead")
-    print("⚡ Model compiled with torch.compile()")
+    if is_cuda:
+        model = torch.compile(model, mode="reduce-overhead")
+        print("⚡ Model compiled with torch.compile() for extra speed")
 except Exception:
     pass
 
-# ==================== TRAINING FUNCTIONS (same as before but faster) ====================
-def train_epoch(model, train_loader, loss_function, optimizer, device, scaler):
-    model.train()
+# ==================== TRAINING FUNCTIONS ====================
+def train_epoch(model, train_loader, loss_function, optimizer, device, scaler, use_amp):
+    model.train()                                      # Enable Dropout + BatchNorm training behavior
     running_loss = 0.0
 
     for images, labels in train_loader:
         images, labels = images.to(device), labels.to(device)
+        optimizer.zero_grad(set_to_none=True)          # Faster than zero_grad()
 
-        optimizer.zero_grad(set_to_none=True)
-
-        with autocast(device_type=device.type):
+        if use_amp:
+            # Automatic Mixed Precision: most math runs in FP16 → faster + less VRAM
+            with autocast(device_type="cuda"):
+                outputs = model(images)
+                loss = loss_function(outputs, labels)
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)  # Stability
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            # Normal full-precision training (MPS or CPU)
             outputs = model(images)
             loss = loss_function(outputs, labels)
-
-        scaler.scale(loss).backward()
-        scaler.unscale_(optimizer)
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        scaler.step(optimizer)
-        scaler.update()
+            loss.backward()
+            optimizer.step()
 
         running_loss += loss.item() * images.size(0)
 
@@ -83,15 +184,14 @@ def train_epoch(model, train_loader, loss_function, optimizer, device, scaler):
 
 
 def validate_epoch(model, val_loader, loss_function, device):
-    model.eval()
+    model.eval()                                       # Disable Dropout, use running BatchNorm stats
     running_val_loss = 0.0
     correct = total = 0
 
-    with torch.no_grad():
+    with torch.no_grad():                              # No gradients = faster and less memory
         for images, labels in val_loader:
             images, labels = images.to(device), labels.to(device)
-
-            with autocast(device_type=device.type):
+            with autocast(device_type=device.type if device.type != "mps" else "cpu"):
                 outputs = model(images)
                 val_loss = loss_function(outputs, labels)
 
@@ -103,24 +203,24 @@ def validate_epoch(model, val_loader, loss_function, device):
     return (running_val_loss / len(val_loader.dataset)), (100.0 * correct / total)
 
 
-# ==================== TRAINING LOOP WITH EARLY STOPPING ====================
+# ==================== TRAINING LOOP WITH IMMEDIATE BEST-MODEL SAVING ====================
 def training_loop(model, train_loader, val_loader, loss_function, optimizer, scheduler,
-                  num_epochs, device, scaler):
+                  num_epochs, device, scaler, use_amp):
     model.to(device)
     best_val_accuracy = 0.0
     best_model_state = None
     best_epoch = 0
-    patience = 8
     patience_counter = 0
 
     train_losses, val_losses, val_accuracies = [], [], []
 
     print("\n" + "="*70)
-    print("🚀 TRAINING STARTED - Optimized for your GTX 1650")
+    print(f"🚀 TRAINING STARTED — {MODE.upper()} MODE")
+    print(f"Device: {device} | Epochs: {num_epochs} | Best model saved live to {BEST_MODEL_PATH}")
     print("="*70)
 
     for epoch in range(num_epochs):
-        epoch_loss = train_epoch(model, train_loader, loss_function, optimizer, device, scaler)
+        epoch_loss = train_epoch(model, train_loader, loss_function, optimizer, device, scaler, use_amp)
         epoch_val_loss, epoch_accuracy = validate_epoch(model, val_loader, loss_function, device)
 
         train_losses.append(epoch_loss)
@@ -135,22 +235,35 @@ def training_loop(model, train_loader, val_loader, loss_function, optimizer, sch
 
         scheduler.step()
 
+        # === IMPORTANT LEARNING POINT: Save best model IMMEDIATELY ===
+        # We save the model to disk every time validation accuracy improves.
+        # This is called "checkpointing". It means you always have the best version,
+        # even if training is interrupted or you stop early.
         if epoch_accuracy > best_val_accuracy:
             best_val_accuracy = epoch_accuracy
             best_epoch = epoch + 1
             best_model_state = copy.deepcopy(model.state_dict())
+
+            # Save to disk right now
+            torch.save({
+                'model_state_dict': model.state_dict(),   # current best weights
+                'num_classes': num_classes,
+                'val_accuracy': best_val_accuracy,
+                'epoch': best_epoch,
+                'mode': MODE,
+            }, BEST_MODEL_PATH)
+
+            print(f"  → New best model saved to {BEST_MODEL_PATH} "
+                  f"({best_val_accuracy:.2f}% at epoch {best_epoch})")
+
             patience_counter = 0
-            print("  → New best model saved!")
         else:
             patience_counter += 1
-            if patience_counter >= patience:
-                print(f"\n⏹️  Early stopping at epoch {epoch+1}")
+            if patience_counter >= PATIENCE:
+                print(f"\n⏹️ Early stopping after {patience_counter} epochs without improvement")
                 break
 
-    print("\n" + "="*70)
-    print(f"✅ TRAINING FINISHED - Best Val Accuracy: {best_val_accuracy:.2f}% at epoch {best_epoch}")
-    print("="*70)
-
+    # Load the best weights back into the model for plotting and further use
     if best_model_state:
         model.load_state_dict(best_model_state)
 
@@ -167,18 +280,12 @@ trained_model, training_metrics = training_loop(
     scheduler=scheduler,
     num_epochs=NUM_EPOCHS,
     device=device,
-    scaler=scaler
+    scaler=scaler,
+    use_amp=use_amp
 )
 
 helper_utils.plot_training_metrics(training_metrics)
 
-# ==================== SAVE MODEL ====================
-torch.save({
-    'model_state_dict': trained_model.state_dict(),
-    'num_classes': num_classes,
-    'val_accuracy': max(training_metrics[2]),
-    'epoch': training_metrics[2].index(max(training_metrics[2])) + 1,
-}, "best_simple_cnn_gtx1650.pth")
-
-print(f"\n✅ Model saved as 'best_simple_cnn_gtx1650.pth'")
+print(f"\n✅ Training finished in {MODE.upper()} mode!")
 print(f"   Best Validation Accuracy: {max(training_metrics[2]):.2f}%")
+print(f"   The best model was saved live to: {BEST_MODEL_PATH}")

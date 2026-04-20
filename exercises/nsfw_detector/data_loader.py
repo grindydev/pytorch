@@ -1,10 +1,10 @@
 # data_loader.py
 
 import os
-from typing import Tuple
+from typing import List, Tuple
 
 from torch.utils.data import Dataset, random_split, Subset, DataLoader
-from datasets import List, load_dataset
+from datasets import load_dataset
 from pathlib import Path
 import helper_utils
 from torchvision import transforms
@@ -78,7 +78,7 @@ class NSFWDataset(Dataset):
 
 def get_mean_std(dataset: Dataset):
     preprocess = transforms.Compose([
-        transforms.Resize((256, 256)),
+        transforms.Resize((128, 128)),
         transforms.ToTensor()
     ])
 
@@ -113,31 +113,33 @@ def get_mean_std(dataset: Dataset):
 
 
 nswf_dataset = NSFWDataset(root_dir=path_dataset, transform=None)
-print(f'Length of the dataset: {len(nswf_dataset)}')
+
+MEAN = [0.5973, 0.5313, 0.5066]
+MEAN_STD = [0.2896, 0.2808, 0.2854]
 
 # mean, std = get_mean_std(nswf_dataset)
-MEAN = [0.5973, 0.5313, 0.5066]
-MEAN_STD = [0.2945, 0.2857, 0.2900]
-print(f"\nMean: {MEAN}")
-print(f" Std: {MEAN_STD}")
+# print(f"\nMean: {mean}")
+# print(f" Std: {std}")
 
 
 def get_transformations(mean, std):
     main_tfs = [
-        transforms.Resize((256, 256)),
-        transforms.CenterCrop((224, 224)),
+        transforms.Resize((128, 128)),
         transforms.ToTensor(),
         transforms.Normalize(mean, std),
     ]
 
     augmentation_tfs = [
-        transforms.RandomVerticalFlip(),
-        transforms.RandomRotation(degrees=15),
-        transforms.ColorJitter(brightness=0.2),
+        transforms.Resize((128, 128)),                                                                                                                                                                
+        transforms.RandomHorizontalFlip(),
+        transforms.RandomRotation(degrees=15),                                                                                                                                                        
+        transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2),                                                                                                                         
+        transforms.ToTensor(),                                                                                                                                                                        
+        transforms.Normalize(mean, std),    
     ]
 
     main_transform = transforms.Compose(main_tfs)
-    augmentation_transform = transforms.Compose(main_tfs + augmentation_tfs)
+    augmentation_transform = transforms.Compose(augmentation_tfs)
 
     return main_transform, augmentation_transform
 

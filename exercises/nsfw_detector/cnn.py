@@ -37,24 +37,21 @@ class SimpleCNN(nn.Module):
         self.conv_block1 = CNNBlock(in_channels=3, out_channels=32) # RGB -> 32 features
         self.conv_block2 = CNNBlock(in_channels=32, out_channels=64)
         self.conv_block3 = CNNBlock(in_channels=64, out_channels=128)
-        self.conv_block4 = CNNBlock(in_channels=128, out_channels=128)
-        self.conv_block5 = CNNBlock(in_channels=128, out_channels=128)
 
 
         self.classifier = nn.Sequential(
+            nn.AdaptiveAvgPool2d((1, 1)),
             nn.Flatten(start_dim=1),
-            nn.Linear(7 * 7 * 128, 896),
+            nn.Linear(128, 512),
             nn.ReLU(),
             nn.Dropout(p=0.6),
-            nn.Linear(896, num_classes)
+            nn.Linear(512, num_classes)
         )
 
     def forward(self, x):
         x = self.conv_block1(x)
         x = self.conv_block2(x)
         x = self.conv_block3(x)
-        x = self.conv_block4(x)
-        x = self.conv_block5(x)
 
         x = self.classifier(x)
         return x
