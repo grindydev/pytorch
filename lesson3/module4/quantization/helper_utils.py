@@ -897,7 +897,7 @@ def print_terminal_comparison_table(
     print(f"| {'Model Size (MB)':<20} | {baseline_model_size:>12.2f} | {quantized_model_size:>12.2f} | {size_diff:>10.2f} |")
     print(f"| {'Inference Time (ms)':<20} | {baseline_model_time:>12.2f} | {quantized_model_time:>12.2f} | {time_diff:>10.2f} |")
     print("="*60)
-    print("✅ Comparison completed (terminal friendly)\n")
+    print(" Comparison completed (terminal friendly)\n")
 
 
 def print_blip_comparison_table(
@@ -936,5 +936,5 @@ def print_blip_comparison_table(
     print("-" * 80)
     print(f"| {'Answer':<20} | {baseline_answer:<15} | {quantized_answer:<15} | {'---':<20} |")
     print("=" * 80)
-    print("✅ Comparison completed (terminal friendly)\n")
+    print(" Comparison completed (terminal friendly)\n")
 

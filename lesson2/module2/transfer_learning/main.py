@@ -67,7 +67,7 @@ train_loader, val_loader = helper_utils.create_emnist_dataloaders(
 # ==================== STEP 2: EXPLORE PRE-TRAINED MODELS ====================
 # Load MobileNetV3 pre-trained on ImageNet (1000 classes)
 mobilenet_model = tv_models.mobilenet_v3_small(weights='IMAGENET1K_V1').eval()
-class_names = helper_utils.load_imagenet_classes('./imagenet_class_index.json')
+class_names = helper_utils.load_imagenet_classes('./outputs/imagenet_class_index.json')
 
 # Load ResNet18 pre-trained on ImageNet
 resnet18_model = tv_models.resnet18(weights='IMAGENET1K_V1')

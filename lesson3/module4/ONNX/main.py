@@ -48,7 +48,7 @@ if torch.cuda.is_available():
     DEVICE = torch.device('cuda')
 elif torch.backends.mps.is_available():
     DEVICE = torch.device('mps')
-    print("🚀 Using MPS — Apple Silicon GPU acceleration (much faster on your Mac!)")
+    print(" Using MPS — Apple Silicon GPU acceleration (much faster on your Mac!)")
 else:
     DEVICE = torch.device('cpu')
 print(f"Using Device: {DEVICE}")
@@ -72,7 +72,7 @@ classes = [
 
 train_loader, val_loader = helper_utils.get_dataloaders(dataset_path)
 helper_utils.show_image_grid(train_loader, classes)
-print("✅ Data loaded and visualized")
+print(" Data loaded and visualized")
 
 
 # ==================== STEP 3: MODEL PREPARATION (Transfer Learning) ====================
@@ -87,7 +87,7 @@ resnet18_model.load_state_dict(state_dict)
 num_classes = len(classes)
 model = helper_utils.adapt_model_for_transfer_learning(resnet18_model, num_classes)
 
-print("✅ ResNet18 loaded with pre-trained weights + adapted for 28 classes")
+print(" ResNet18 loaded with pre-trained weights + adapted for 28 classes")
 
 
 # ==================== STEP 4: TRAINING (1 epoch is enough) ====================
@@ -95,7 +95,7 @@ print("✅ ResNet18 loaded with pre-trained weights + adapted for 28 classes")
 # In real projects you would train longer + use learning rate scheduling, etc.
 num_epochs = 1
 trained_model = helper_utils.training_loop(model, train_loader, val_loader, num_epochs, DEVICE)
-print("✅ Training finished — model is ready for deployment!")
+print(" Training finished — model is ready for deployment!")
 
 
 # ==================== STEP 5: EXPORT PYTORCH → ONNX ====================
@@ -104,7 +104,7 @@ print("✅ Training finished — model is ready for deployment!")
 
 model_path = Path.cwd() / 'data/ONNX'
 model_path.mkdir(parents=True, exist_ok=True)          # Create folder if it doesn't exist
-print(f"✅ Export directory ready: {model_path}")
+print(f" Export directory ready: {model_path}")
 
 trained_model.eval()
 print("\nExporting PyTorch model to ONNX...")
@@ -125,7 +125,7 @@ torch.onnx.export(
         'output': {0: 'batch_size'}
     }
 )
-print("✅ Exported successfully as fruit_veg_model.onnx")
+print(" Exported successfully as fruit_veg_model.onnx")
 
 
 # ==================== STEP 6: INFERENCE WITH ONNX RUNTIME ====================
@@ -150,7 +150,7 @@ predictions = ort_outputs[0]
 
 print("Displaying predictions from ONNX Runtime...\n")
 helper_utils.show_prediction_grid(input_data, true_labels, predictions, classes)
-print("✅ ONNX Runtime inference completed (no PyTorch needed!)")
+print(" ONNX Runtime inference completed (no PyTorch needed!)")
 
 
 # ==================== STEP 7: ONNX → NATIVE TENSORFLOW (TFLite) ====================
@@ -163,15 +163,15 @@ print("Converting ONNX to TensorFlow Lite model...")
 
 convert(
     input_onnx_file_path=model_path / "fruit_veg_model.onnx",
-    output_folder_path=model_path / "fruit_veg_tf_savedmodel",
+    output_folder_path=Path("outputs/onnx_export/fruit_veg_tf_savedmodel"),
     output_signaturedefs=True,
     keep_ncw_or_nchw_or_ncdhw_input_names=['input']
 )
 
-print("✅ Conversion completed — TFLite model created")
+print(" Conversion completed — TFLite model created")
 
 # Load and run the TFLite model (this is the native TensorFlow way)
-tflite_path = model_path / "fruit_veg_tf_savedmodel" / "fruit_veg_model_float32.tflite"
+tflite_path = Path("outputs/onnx_export/fruit_veg_tf_savedmodel") / "fruit_veg_model_float32.tflite"
 
 interpreter = tf.lite.Interpreter(model_path=str(tflite_path))
 interpreter.allocate_tensors()
@@ -198,11 +198,11 @@ tf_predictions_np = np.array(tf_predictions)
 
 print("Displaying predictions from NATIVE TensorFlow Lite model...\n")
 helper_utils.show_prediction_grid(input_data, true_labels, tf_predictions_np, classes)
-print("✅ ONNX → TensorFlow Lite conversion completed!")
+print(" ONNX → TensorFlow Lite conversion completed!")
 
 
 # ==================== FINAL SUMMARY ====================
-print("\n🎉 LAB COMPLETE!")
+print("\n LAB COMPLETE!")
 print("You have successfully:")
 print("   • Trained a model using transfer learning (ResNet18)")
 print("   • Exported PyTorch model to ONNX format")

@@ -547,9 +547,9 @@ for category, examples in test_examples.items():
         
         # Check if the prediction was correct and set the result string/emoji.
         if predicted == expected:
-            result = "✅ Correct"
+            result = " Correct"
         else:
-            result = "❌ Incorrect"
+            result = " Incorrect"
             
         # Print the results in the desired format.
         print(f"Instruction: '{instruction}'")

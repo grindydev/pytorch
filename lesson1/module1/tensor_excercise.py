@@ -1,6 +1,45 @@
+"""
+Lesson 1 - Module 1: Tensor Exercises -- Practice What You Learned
+===================================================================
+
+WHY THIS MATTERS:
+  Reading about tensors is not enough. You need to USE them to build muscle
+  memory. These exercises simulate real tasks you will do in ML projects:
+  slicing datasets, reshaping image batches, combining sensor readings, and
+  filtering data with boolean masks.
+
+WHAT YOU'LL LEARN:
+  * Exercise 1: Indexing, slicing, and boolean masks on a sales dataset
+  * Exercise 2: Shape manipulation on image batches (unsqueeze, transpose)
+  * Exercise 3: Concatenation, reshaping, and broadcasting with sensor data
+  * Exercise 4: Complex boolean masking and feature engineering on trip data
+
+KEY CONCEPTS:
+  Slicing       -- Selecting a range of elements (tensor[0:3])
+  Boolean Mask  -- A tensor of True/False used to filter elements
+  Broadcasting  -- Auto-stretching tensors of different shapes for arithmetic
+  Feature Eng.  -- Creating new input columns from existing data
+
+HOW IT FITS:
+  Do this after reading tensor.py. Each exercise practices specific skills
+  from that file. Come back here anytime you need a refresher on tensor ops.
+
+PREREQUISITES:
+  Complete tensor.py first.
+"""
+
 import torch
 import numpy as np
 import pandas as pd
+
+# ==================== EXERCISE 1: INDEXING AND SLICING ====================
+#
+# CONCEPT: Access specific rows, columns, and filtered values from a 2D tensor.
+#
+# ANALOGY: Like selecting cells in a spreadsheet -- you pick which rows and
+# columns you want to look at.
+#
+# SKILLS: tensor[row], tensor[:, col], tensor > threshold
 
 ### Exercise 1: Analyzing Monthly Sales Data
 # Sales data for 3 products over 4 months (Jan, Feb, Mar, Apr).

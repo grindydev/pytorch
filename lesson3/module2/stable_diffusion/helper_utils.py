@@ -356,7 +356,7 @@ def load_widget(pipe):
     # Create an informational tooltip/label regarding the generation mode
     mode_info = widgets.HTML(
         value="""<div style='background-color:#000000;padding:8px;border-radius:6px;margin:8px 0;'>
-        <small><b>💡 Tip:</b> Uncheck for faster generation (final image only)</small>
+        <small><b> Tip:</b> Uncheck for faster generation (final image only)</small>
         </div>"""
     )
     
@@ -414,7 +414,7 @@ def load_widget(pipe):
     
     # Initialize the execution button
     run_button = widgets.Button(
-        description="✨ Generate with Animation ✨", 
+        description=" Generate with Animation ", 
         button_style='info',
         layout=widgets.Layout(width='250px', height='40px')
     )
@@ -422,10 +422,10 @@ def load_widget(pipe):
     # Define logic to update button text based on the selected mode
     def update_button_text(*args):
         if mode_checkbox.value:
-            run_button.description = "✨ Generate with Animation ✨"
+            run_button.description = " Generate with Animation "
             run_button.button_style = 'info'
         else:
-            run_button.description = "⚡ Quick Generate ⚡"
+            run_button.description = " Quick Generate "
             run_button.button_style = 'success'
     mode_checkbox.observe(update_button_text, 'value')
     
@@ -470,7 +470,7 @@ def load_widget(pipe):
         with output:
             # Clear previous output logs
             output.clear_output()
-            print(f"\n🎬 Generating animation with {num_inference_steps} steps")
+            print(f"\n Generating animation with {num_inference_steps} steps")
             print(f"Prompt: {prompt}")
             if negative_prompt:
                 print(f"Negative prompt: {negative_prompt}")
@@ -531,7 +531,7 @@ def load_widget(pipe):
             progress.bar_style = 'success'
             progress.description = 'Done'
             
-            print("\n🎨 Creating animation...")
+            print("\n Creating animation...")
             # Initialize buffer for GIF data
             gif_bytes = io.BytesIO()
             # Extract image objects from the storage list
@@ -546,7 +546,7 @@ def load_widget(pipe):
             
             # Calculate and print elapsed time
             elapsed = time.time() - start_time
-            print(f"✅ Animation generated in {elapsed:.1f} seconds")
+            print(f" Animation generated in {elapsed:.1f} seconds")
     
     def generate_final_only(prompt, negative_prompt, num_inference_steps, guidance_scale):
         """
@@ -561,7 +561,7 @@ def load_widget(pipe):
         with output:
             # Clear previous output logs
             output.clear_output()
-            print(f"\n⚡ Quick generation with {num_inference_steps} steps")
+            print(f"\n Quick generation with {num_inference_steps} steps")
             print(f"Prompt: {prompt}")
             if negative_prompt:
                 print(f"Negative prompt: {negative_prompt}")
@@ -610,10 +610,10 @@ def load_widget(pipe):
             
             # Calculate and print elapsed time
             elapsed = time.time() - start_time
-            print(f"✅ Image generated in {elapsed:.1f} seconds")
+            print(f" Image generated in {elapsed:.1f} seconds")
             
             # Display summary statistics
-            print(f"\n📊 Generation Stats:")
+            print(f"\n Generation Stats:")
             print(f"  • Mode: Quick (final image only)")
             print(f"  • Steps: {num_inference_steps}")
             print(f"  • Guidance Scale: {guidance_scale}")

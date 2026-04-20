@@ -1,3 +1,29 @@
+"""
+Lesson 2 - Module 1: Model Architectures for Efficiency Comparison
+===================================================================
+
+WHY THIS MATTERS:
+  Choosing the right architecture is a key decision. This file defines
+  several CNN architectures with different sizes so you can compare their
+  training speed, accuracy, and parameter counts.
+
+WHAT YOU'LL LEARN:
+  * How width (more channels) and depth (more layers) affect performance
+  * Parameter counting for different architectures
+  * The trade-off between model size and accuracy
+
+KEY CONCEPTS:
+  Parameters  -- Learnable weights (more = more capacity but slower)
+  Overfitting -- Model too large for data (memorizes instead of learning)
+
+HOW IT FITS:
+  Used by efficiency_performance/main.py. Read main.py first to see the
+  comparison, then come here to understand the architectures.
+
+PREREQUISITES:
+  Complete Lesson 1 Module 4 (CNNs).
+"""
+
 import torch
 import torch.nn as nn
 

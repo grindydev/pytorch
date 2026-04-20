@@ -30,7 +30,7 @@ def run_experiment(experiment_name, experiment_fcn, cases, trainset, device, rer
         dict: The result of the experiment.
     """
     # Define the directory for storing experiment checkpoints
-    folder_experiments = "./checkpoint_experiments"
+    folder_experiments = "./outputs/dataloader_benchmarks/checkpoint_experiments"
     # Ensure the checkpoint directory exists
     os.makedirs(folder_experiments, exist_ok=True)
     file_path = f"{folder_experiments}/{experiment_name}.json"
@@ -333,7 +333,7 @@ def visualize_dataloader_efficiency(loader_dict, device):
         # Catch a generic RuntimeError
         except RuntimeError as e:
             # Print an error message
-            print(f"\n❌ ERROR with {label}: {e}")
+            print(f"\n ERROR with {label}: {e}")
 
         # Ensure resources are cleaned up regardless of errors
         finally:

@@ -1,3 +1,27 @@
+"""
+Lesson 2 - Module 1: Optuna Grid Search
+=========================================
+
+WHY THIS MATTERS:
+  Before using Optuna's smart search, it helps to see a simpler approach:
+  grid search (trying every combination). This file shows the baseline.
+
+WHAT YOU'LL LEARN:
+  * Grid search: exhaustive search over a fixed set of hyperparameter values
+  * Comparing grid search with Optuna's smarter search
+
+KEY CONCEPTS:
+  Grid Search -- Try every combination (slow but thorough)
+  Optuna      -- Uses history to guide future trials (faster, smarter)
+
+HOW IT FITS:
+  Companion to optuna/main.py. Read main.py first for the Optuna approach,
+  then look here to see how grid search compares.
+
+PREREQUISITES:
+  Complete optuna/main.py first.
+"""
+
 import torch
 import torch.nn as nn
 import torch.optim as optim

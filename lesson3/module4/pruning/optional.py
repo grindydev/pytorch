@@ -1,3 +1,28 @@
+"""
+Lesson 3 - Module 4: Pruning -- Optional Exercise
+===================================================
+
+WHY THIS MATTERS:
+  This optional file lets you practice pruning on a real model (fruit/vegetable
+  classifier) and compare accuracy before and after pruning.
+
+WHAT YOU'LL LEARN:
+  * Applying pruning to a production model
+  * Measuring sparsity and accuracy impact
+  * Comparing pruned vs unpruned model performance
+
+KEY CONCEPTS:
+  Sparsity -- Percentage of weights that are zero
+  Fine-tuning after pruning -- Retrain to recover accuracy
+
+HOW IT FITS:
+  Optional companion to pruning/main.py. Complete main.py first to understand
+  the pruning theory, then run this for hands-on practice.
+
+PREREQUISITES:
+  Complete pruning/main.py first.
+"""
+
 import torch
 import torch.nn as nn
 import torch.nn.utils.prune as prune
@@ -12,7 +37,7 @@ if torch.cuda.is_available():
     DEVICE = torch.device('cuda')
 elif torch.backends.mps.is_available():
     DEVICE = torch.device('mps')
-    print("🚀 Using MPS — Apple Silicon GPU acceleration!")
+    print(" Using MPS — Apple Silicon GPU acceleration!")
 else:
     DEVICE = torch.device('cpu')
 print(f"Using Device: {DEVICE}")
@@ -148,10 +173,10 @@ helper_utils.save_pruned_model_and_metrics(trained_pruned_model, pruned_metrics)
 # ====================== COMPARISON REPORT ======================
 # LEARNING: This helper shows you the real difference between the two models.
 helper_utils.comparison_report(
-    unpruned_state_dict_path="unpruned_model_state_dict.pth",
-    unpruned_metrics_path="unpruned_metrics.pkl",
-    pruned_state_dict_path="pruned_model_permanent_state_dict.pth",
-    pruned_metrics_path="pruned_metrics.pkl",
+    unpruned_state_dict_path="models/pruning/unpruned_model.pth",
+    unpruned_metrics_path="outputs/unpruned_metrics.pkl",
+    pruned_state_dict_path="models/pruning/pruned_model.pth",
+    pruned_metrics_path="outputs/pruned_metrics.pkl",
     num_epochs=num_epochs,
     device=DEVICE
 )

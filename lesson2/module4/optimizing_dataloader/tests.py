@@ -58,7 +58,7 @@ def custom_experiment(trainset, device):
             results_dictionary[current_value] = helper_utils.measure_average_epoch_time(loader, device)
         except RuntimeError as e:
             # Handle cases where a runtime error occurs, such as an out-of-memory issue.
-            print(f"\n❌ ERROR with {parameter_name} = {current_value}: {e}")
+            print(f"\n ERROR with {parameter_name} = {current_value}: {e}")
             results_dictionary[current_value] = float('inf')
             
         # Ensure each test run is independent by cleaning up memory.

@@ -377,8 +377,8 @@ def training_loop(model, train_loader, val_loader, num_epochs, device, num_class
 def save_unpruned_model_and_metrics(
     model, 
     metrics, 
-    state_dict_filename="unpruned_model_state_dict.pth", 
-    metrics_filename="unpruned_metrics.pkl"
+    state_dict_filename="models/pruning/unpruned_model.pth", 
+    metrics_filename="outputs/unpruned_metrics.pkl"
 ):
     """
     Persists the model state dictionary and evaluation metrics to local storage.
@@ -389,6 +389,8 @@ def save_unpruned_model_and_metrics(
         state_dict_filename: The target filename for the saved model weights.
         metrics_filename: The target filename for the serialized metrics data.
     """
+    os.makedirs(os.path.dirname(state_dict_filename), exist_ok=True)
+    os.makedirs(os.path.dirname(metrics_filename), exist_ok=True)
     # Save the model weights and parameters to a file
     torch.save(model.state_dict(), state_dict_filename)
     print(f"Unpruned model state dictionary saved to {state_dict_filename}")
@@ -403,8 +405,8 @@ def save_unpruned_model_and_metrics(
 def save_pruned_model_and_metrics(
     model, 
     metrics, 
-    state_dict_filename="pruned_model_permanent_state_dict.pth", 
-    metrics_filename="pruned_metrics.pkl"
+    state_dict_filename="models/pruning/pruned_model.pth", 
+    metrics_filename="outputs/pruned_metrics.pkl"
 ):
     """
     Saves the model state dictionary and associated performance metrics to files.
@@ -415,6 +417,8 @@ def save_pruned_model_and_metrics(
         state_dict_filename: The destination path for the model state dictionary file.
         metrics_filename: The destination path for the serialized metrics file.
     """
+    os.makedirs(os.path.dirname(state_dict_filename), exist_ok=True)
+    os.makedirs(os.path.dirname(metrics_filename), exist_ok=True)
     # Save the model's weight parameters to the specified disk location
     torch.save(model.state_dict(), state_dict_filename)
     print(f"Permanently pruned model state dictionary saved to {state_dict_filename}")

@@ -493,7 +493,7 @@ trained_densenet, history, confusion_matrix = helper_utils.training_loop_16_mixe
     optimizer=optimizer,
     num_epochs=num_epochs,
     device=device,
-    save_path='./saved_models/best_trained_densenet.pth',
+    save_path='./models/densenet_siamese/best_trained_densenet.pth',
 )
 
 # Plot the learning curves to visualize the model's performance and highlight the best epoch.
@@ -532,7 +532,7 @@ feature_extracted_densenet, history, cm_feature_densenet = helper_utils.training
     optimizer=optimizer_pretrained,
     num_epochs=num_epochs,
     device=device,
-    save_path='./saved_models/best_pretrained_densenet.pth',
+    save_path='./models/densenet_siamese/best_pretrained_densenet.pth',
 )
 
 # Visualize predictions from the feature-extracted model on a sample of validation images.

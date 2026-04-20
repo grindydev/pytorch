@@ -395,7 +395,7 @@ trained_siamese = training_functions.training_loop_signature(
     # The compute device (e.g., 'cpu' or 'cuda').
     device=device,
     # File path to save the best performing model.
-    save_path='./saved_models/best_signature_siamese.pth',
+    save_path='./models/densenet_siamese/best_signature_siamese.pth',
     # The total number of epochs for training.
     n_epochs=5
 )
@@ -693,7 +693,7 @@ trained_efficientnet = training_functions.training_loop_change(
     # The compute device (e.g., 'cpu' or 'cuda').
     device=device,
     # File path to save the model with the lowest validation loss.
-    save_path='./saved_models/best_change_siamese.pth',
+    save_path='./models/densenet_siamese/best_change_siamese.pth',
     # The total number of epochs for training.
     n_epochs=10
 )

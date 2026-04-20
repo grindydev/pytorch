@@ -382,7 +382,7 @@ def train_model(model, train_loader, test_loader, optimizer, criterion, num_epoc
                 'test_loss': avg_test_loss,
                 'train_loss': avg_train_loss
             }
-            print(f'  🎯 New best model! Test Acc: {test_accuracy:.2f}%')
+            print(f'   New best model! Test Acc: {test_accuracy:.2f}%')
         
         # Output a summary of metrics for the current epoch
         print(f'Epoch {epoch+1}/{num_epochs} Summary:')
@@ -624,13 +624,13 @@ def compare_models(history1, history2,
     print("-"*60)
     
     if abs(difference) < 2:
-        print("✓ Both models perform similarly! The implementations are comparable.")
+        print(" Both models perform similarly! The implementations are comparable.")
     elif difference > 0:
-        print(f"✓ {model2_name} performs better by {difference:.2f}%")
+        print(f" {model2_name} performs better by {difference:.2f}%")
         if difference > 5:
             print("  This is a significant improvement.")
     else:
-        print(f"✓ {model1_name} performs better by {-difference:.2f}%")
+        print(f" {model1_name} performs better by {-difference:.2f}%")
         if difference < -5:
             print("  This is a significant improvement.")
     
@@ -638,7 +638,7 @@ def compare_models(history1, history2,
     overfit1 = selected_train_acc1 - selected_test_acc1
     overfit2 = selected_train_acc2 - selected_test_acc2
     
-    print("\n⚠️  Overfitting Analysis (for selected models):")
+    print("\n  Overfitting Analysis (for selected models):")
     print(f"  {model1_name}: {overfit1:.1f}% gap (train-test) at epoch {best_epoch1}")
     print(f"  {model2_name}: {overfit2:.1f}% gap (train-test) at epoch {best_epoch2}")
     
@@ -653,7 +653,7 @@ def compare_models(history1, history2,
     
     # Assess the effectiveness of selecting the best epoch over the final epoch
     if best_epoch1 < epochs or best_epoch2 < epochs:
-        print("\n📊 Early Stopping Analysis:")
+        print("\n Early Stopping Analysis:")
         if best_epoch1 < epochs:
             prevented_overfit1 = (final_train_acc1 - final_test_acc1) - overfit1
             print(f"  {model1_name}: Early stopping at epoch {best_epoch1} prevented {prevented_overfit1:.1f}% additional overfitting")

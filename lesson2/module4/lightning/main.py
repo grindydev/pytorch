@@ -176,7 +176,7 @@ print(f"  Validation Accuracy: {baseline_results['val_accuracy']}%")
 # KEY CONCEPT: Profiling measures how much time each operation takes.
 # This helps you find bottlenecks and optimize your model.
 
-log_dir = "./profiler_output"
+log_dir = "./outputs/profiler"
 
 profiler = PyTorchProfiler(
     dirpath=log_dir,

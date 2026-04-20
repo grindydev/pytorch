@@ -1,4 +1,5 @@
 import math
+import os
 import time
 from functools import wraps
 from typing import Optional
@@ -205,7 +206,7 @@ def load_resnet_table():
         A pandas DataFrame containing the ResNet results.
     """
     # Read the CSV file into a pandas DataFrame, using the first column as the index.
-    resnet_results = pd.read_csv("resnet_results.csv", index_col=0)
+    resnet_results = pd.read_csv("outputs/resnet_efficiency_results.csv", index_col=0)
     # Return the loaded DataFrame.
     return resnet_results
 

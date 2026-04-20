@@ -418,7 +418,7 @@ unittests.exercise_1(Encoder)
 # | **Input Source** | Only previous tokens | Previous tokens + Encoder memory |
 # | **Attention Types** | Self-attention only | Self-attention + Cross-attention |
 # | **Key Component** | `TransformerEncoder` with masking | `TransformerDecoder` with memory |
-# | **Memory Input** | ❌ None | ✅ Encoder outputs |
+# | **Memory Input** |  None |  Encoder outputs |
 
 
 # GRADED CELL  
@@ -750,7 +750,7 @@ def translate_sentence(model, sentence, src_word2idx, tgt_idx2word, tokenizer, m
 # Quick debug version
 def debug_translate(model, sentence, src_word2idx, tgt_idx2word, tokenizer, max_length=20):
     """Debug version with temperature and verbose output"""
-    print(f"\n🔍 DEBUG: Translating '{sentence}'")
+    print(f"\n DEBUG: Translating '{sentence}'")
     print("=" * 50)
     
     # Try with different temperatures

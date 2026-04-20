@@ -1,3 +1,31 @@
+"""
+Lesson 1 - Module 3: Plants Dataset -- Custom Dataset from CSV
+================================================================
+
+WHY THIS MATTERS:
+  Most real datasets come as a CSV file (filenames + labels) plus a folder of
+  images. This is the standard format on Kaggle and in industry. This file
+  shows you exactly how to turn that into a PyTorch Dataset.
+
+WHAT YOU'LL LEARN:
+  * Reading labels from a CSV file
+  * Loading images by constructing file paths
+  * Implementing __len__() and __getitem__() for a CSV-based dataset
+  * Mapping string labels to integer indices
+
+KEY CONCEPTS:
+  __len__  -- Returns the number of samples (required by PyTorch)
+  __getitem__ -- Loads one (image, label) pair by index (required by PyTorch)
+  .iloc[]  -- Pandas row/column access by integer position
+
+HOW IT FITS:
+  Used by data_pileline/main.py. Read main.py first to see the full pipeline,
+  then come here to understand the dataset implementation.
+
+PREREQUISITES:
+  Complete Lesson 1 Module 1 and Module 2.
+"""
+
 from torch.utils.data import Dataset
 import pandas as pd
 from PIL import Image

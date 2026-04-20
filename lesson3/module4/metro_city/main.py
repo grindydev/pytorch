@@ -42,7 +42,7 @@ if torch.cuda.is_available():
     device = torch.device('cuda')
 elif torch.backends.mps.is_available():
     device = torch.device('mps')
-    print("🚀 Using MPS — Apple Silicon GPU acceleration!")
+    print(" Using MPS — Apple Silicon GPU acceleration!")
 else:
     device = torch.device('cpu')
 print(f"Using Device: {device}")
@@ -489,7 +489,7 @@ helper_utils.train_model(
     1,
     optimizer,
     device,
-    save_path=  "fine_tuned_qat_model.pt")
+    save_path=  "models/metro_city/metro_city_fine_tuned_qat.pt")
     
 qat_model.to("cpu")
 
@@ -498,13 +498,16 @@ qat_model.eval()
 int8_model = torch.quantization.convert(qat_model)
 print("Model converted to int8")
 
+# Ensure save directory exists
+os.makedirs("models/metro_city", exist_ok=True)
+
 # Save the quantized model with full state
 torch.save({
     'model_state_dict': int8_model.state_dict(),
     'quantization_config': int8_model.state_dict()
-}, "quantized_int8_model.pt")
+}, "models/metro_city/metro_city_quantized_int8.pt")
 
-print("Saved quantized model checkpoint to quantized_int8_model.pt")
+print("Saved quantized model checkpoint to models/metro_city/metro_city_quantized_int8.pt")
 
 # Evaluate int8 model on test data
 int8_model.eval()
@@ -528,12 +531,12 @@ print(f"Int8 model: {int8_time:.4f} seconds per batch")
 print(f"Speed improvement: {time_improvement:.1f}%")
 
 # Save both models weights to compare sizes
-torch.save(model.state_dict(), "base_model_weights.pt")
-torch.save(int8_model.state_dict(), "int8_model_weights.pt")
+torch.save(model.state_dict(), "models/metro_city/metro_city_base_weights.pt")
+torch.save(int8_model.state_dict(), "models/metro_city/metro_city_int8_weights.pt")
 
 # Get file sizes in MB
-base_size = os.path.getsize("base_model_weights.pt") / (1024 * 1024)
-int8_size = os.path.getsize("int8_model_weights.pt") / (1024 * 1024)
+base_size = os.path.getsize("models/metro_city/metro_city_base_weights.pt") / (1024 * 1024)
+int8_size = os.path.getsize("models/metro_city/metro_city_int8_weights.pt") / (1024 * 1024)
 
 print(f"\nModel size comparison:")
 print(f"Base model: {base_size:.2f} MB")

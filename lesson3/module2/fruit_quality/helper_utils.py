@@ -164,7 +164,7 @@ def display_model_architecture(model):
                 
                 # Append the sub-layer information with visual indentation
                 layer_data.append({
-                    "Layer Hierarchy": f"&nbsp;&nbsp;&nbsp;&nbsp;└─ {sub_name}",
+                    "Layer Hierarchy": f"&nbsp;&nbsp;&nbsp;&nbsp; {sub_name}",
                     "Layer Type": sub_type,
                     "Parameters": f"{sub_params:,}"
                 })

@@ -379,7 +379,7 @@ with torch.no_grad():
 print(f"\nOutput shape: {output.shape}")
 print(f"Expected: [batch_size={batch_size}, seq_len={seq_len}, vocab_size={vocab_size}]")
 
-print("\n✓ Decoder transforms input tokens into vocabulary logits for next-token prediction")
+print("\n Decoder transforms input tokens into vocabulary logits for next-token prediction")
 
 data_dir = Path.cwd() / 'data'
 

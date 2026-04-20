@@ -37,7 +37,7 @@ if torch.cuda.is_available():
     DEVICE = torch.device('cuda')
 # elif torch.backends.mps.is_available():
 #     DEVICE = torch.device('mps')
-#     print("🚀 Using MPS — Apple Silicon GPU acceleration!")
+#     print(" Using MPS — Apple Silicon GPU acceleration!")
 else:
     DEVICE = torch.device('cpu')
 print(f"Using Device: {DEVICE}")
@@ -107,7 +107,7 @@ for name, module in baseline_model.named_modules():
         print(f"Layer: {name:<10} | Weight dtype: {module.weight.dtype}")
 
 torch.backends.quantized.engine = 'qnnpack'
-print("✅ Quantized engine set to 'qnnpack'")
+print(" Quantized engine set to 'qnnpack'")
 
 baseline_model_cpu = baseline_model.to('cpu')
 
@@ -124,7 +124,7 @@ for name, module in quantized_dynamic_model.named_modules():
     if isinstance(module, torch.nn.quantized.dynamic.Linear):
         print(f"Layer: {name:<10} | Weight dtype: {module.weight().dtype}")
 
-print("\n✅ Dynamic quantization completed and model saved!")
+print("\n Dynamic quantization completed and model saved!")
 
 quantized_dynamic_model_size = helper_utils.get_model_size(quantized_dynamic_model)
 quantized_dynamic_model_inf_time = helper_utils.measure_average_inference_time_ms(quantized_dynamic_model)
@@ -330,7 +330,7 @@ for name, (size, time) in all_stats.items():
     print(f"| {name:<12} | {size:>10.2f} | {time:>14.2f} |")
 print('='*80)
 
-print("\n🎓 LEARNING SUMMARY - Advantages & When to Use Each Quantization Method\n")
+print("\n LEARNING SUMMARY - Advantages & When to Use Each Quantization Method\n")
 
 print("""**Dynamic Quantization**
 • Best Practices: Simplest method. No model changes or calibration needed.
@@ -349,5 +349,5 @@ print("""**Dynamic Quantization**
   and cannot accept accuracy drop from post-training quantization.
   Best for production models where accuracy is critical.""")
 
-print("\n✅ All models saved in data/models/ folder.")
+print("\n All models saved in data/models/ folder.")
 print("You have now mastered the full quantization pipeline!")

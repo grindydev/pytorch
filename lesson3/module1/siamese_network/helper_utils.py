@@ -493,9 +493,9 @@ def verify_signature(model, genuine_path, test_path, threshold, transform, devic
     print(f"Decision Threshold: {threshold:.4f}")
     # Print the final prediction outcome.
     if is_genuine:
-        print("Prediction: ✅ Genuine Signature\n")
+        print("Prediction:  Genuine Signature\n")
     else:
-        print("Prediction: ❌ Forgery Detected\n")
+        print("Prediction:  Forgery Detected\n")
         
     # Create a figure with two subplots for visual comparison.
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))
@@ -1203,11 +1203,11 @@ def predict_greenery_change(model, before_path, after_path, model_threshold, tra
     
     # Print the final prediction with a corresponding emoji.
     if final_prediction == 'Positive':
-        print(f"Prediction: 🌳 {final_prediction}\n")
+        print(f"Prediction:  {final_prediction}\n")
     elif final_prediction == 'Negative':
-        print(f"Prediction: 🪓 {final_prediction}\n")
+        print(f"Prediction:  {final_prediction}\n")
     else:
-        print(f"Prediction: 🔄 {final_prediction}\n")
+        print(f"Prediction:  {final_prediction}\n")
         
     # Create a plot to visualize the images and the prediction.
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(8, 4))

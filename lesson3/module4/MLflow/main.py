@@ -1,5 +1,5 @@
 """
-✅ COMPLETE EDUCATIONAL SCRIPT: PyTorch Lightning + MLflow (Local Mac Version)
+Lesson 3 - Module 4: MLflow -- Experiment Tracking & Model Management: PyTorch Lightning + MLflow (Local Mac Version)
 ================================================================================
 This script teaches you how to structure a professional training workflow using:
 - LightningDataModule → clean data handling
@@ -65,14 +65,14 @@ def start_mlflow_ui(port=5000):
     time.sleep(4)  # give it a bit more time to start
     
     url = f"http://127.0.0.1:{port}"
-    print(f"✅ MLflow UI is running at → {url}")
+    print(f" MLflow UI is running at → {url}")
     
     # Auto-open in default browser (clean new tab)
     webbrowser.open(url)
-    print("🔄 Browser should open automatically now...")
+    print(" Browser should open automatically now...")
     
     print("\n" + "="*70)
-    print("🌐 MLflow UI is LIVE!")
+    print(" MLflow UI is LIVE!")
     print("="*70)
     print("You can now explore your experiment (parameters, metrics, artifacts, etc.)")
     print("When you are finished, press Enter in this terminal to stop the server.")
@@ -117,9 +117,9 @@ class CIFAR10DataModule(pl.LightningDataModule):
 
     def prepare_data(self):
         if self.data_dir.exists():
-            print("✅ CIFAR-10 data already downloaded.")
+            print(" CIFAR-10 data already downloaded.")
         else:
-            print("⬇️ Downloading CIFAR-10...")
+            print(" Downloading CIFAR-10...")
         torchvision.datasets.CIFAR10(root=self.data_dir, train=True, download=True)
         torchvision.datasets.CIFAR10(root=self.data_dir, train=False, download=True)
 
@@ -210,7 +210,7 @@ class MLflowLoggingCallback(Callback):
         super().__init__()
         self.classes = classes
         self.best_accuracy = 0.0
-        self.model_save_dir = "./best_model"
+        self.model_save_dir = "./models/checkpoints"
         os.makedirs(self.model_save_dir, exist_ok=True)
 
     def on_train_start(self, trainer, pl_module):
@@ -220,7 +220,7 @@ class MLflowLoggingCallback(Callback):
         mlflow.log_param("scheduler", "ReduceLROnPlateau")
         mlflow.log_param("batch_size", trainer.datamodule.batch_size)
         mlflow.log_param("random_seed", RANDOM_SEED)
-        print("✅ Hyperparameters logged to MLflow.")
+        print(" Hyperparameters logged to MLflow.")
 
     def on_validation_epoch_end(self, trainer, pl_module):
         if trainer.sanity_checking:
@@ -238,10 +238,10 @@ class MLflowLoggingCallback(Callback):
                 path = os.path.join(self.model_save_dir, f'best_model_epoch_{epoch+1}.pt')
                 torch.save(checkpoint, path)
                 mlflow.log_artifact(path, artifact_path="checkpoints")
-                print(f"🏆 New best model! Accuracy = {acc:.2f}%")
+                print(f" New best model! Accuracy = {acc:.2f}%")
 
     def on_train_end(self, trainer, pl_module):
-        print("\n📊 Generating final confusion matrix...")
+        print("\n Generating final confusion matrix...")
         confmat = ConfusionMatrix(task="multiclass", num_classes=10).to(pl_module.device)
         pl_module.eval()
         with torch.no_grad():
@@ -257,13 +257,13 @@ class MLflowLoggingCallback(Callback):
         pl_module.to("cpu")
         mlflow.pytorch.log_model(pl_module, "cifar10_cnn_model_final", input_example=example)
         mlflow.log_metric("best_accuracy", self.best_accuracy)
-        print(f"🎉 Training finished! Best accuracy: {self.best_accuracy:.2f}%")
+        print(f" Training finished! Best accuracy: {self.best_accuracy:.2f}%")
 
 # ===================================================================
 # 4. MAIN – TRAINING + MLflow UI THAT STAYS OPEN
 # ===================================================================
 if __name__ == "__main__":
-    print("🚀 Starting Lightning + MLflow CIFAR-10 training...\n")
+    print(" Starting Lightning + MLflow CIFAR-10 training...\n")
 
     data_module = CIFAR10DataModule(batch_size=128, num_workers=1)
     mlflow.set_experiment("CIFAR10_CNN_Experiment")
@@ -285,17 +285,17 @@ if __name__ == "__main__":
 
         trainer.fit(model, data_module)
 
-        print(f"\n✅ Training complete! MLflow Run ID = {run.info.run_id}")
+        print(f"\n Training complete! MLflow Run ID = {run.info.run_id}")
 
     # ====================== MLflow UI THAT STAYS OPEN ======================
     show_ui_navigation_instructions()
     mlflow_process = start_mlflow_ui()
 
-    print("\n🌐 MLflow UI is now LIVE at: http://127.0.0.1:5000")
+    print("\n MLflow UI is now LIVE at: http://127.0.0.1:5000")
     print("You can now open the link in your browser and explore everything.")
 
     # Keep the script alive so the UI doesn't die
-    input("\n✅ Press Enter when you are finished viewing the MLflow UI to stop the server...")
+    input("\n Press Enter when you are finished viewing the MLflow UI to stop the server...")
 
     mlflow_process.terminate()
-    print("MLflow UI stopped. Have a great day! 🚀")
+    print("MLflow UI stopped. Have a great day! ")

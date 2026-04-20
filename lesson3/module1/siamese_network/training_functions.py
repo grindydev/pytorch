@@ -1,3 +1,32 @@
+"""
+Lesson 3 - Module 1: Siamese Network Training Functions
+========================================================
+
+WHY THIS MATTERS:
+  Siamese networks learn by comparing PAIRS or TRIPLETS of images. The loss
+  functions for this are different from standard classification. This file
+  implements the core training utilities: contrastive loss and triplet loss.
+
+WHAT YOU'LL LEARN:
+  * Contrastive loss: push similar pairs together, dissimilar pairs apart
+  * Triplet loss: anchor + positive should be closer than anchor + negative
+  * Training functions for signature verification
+  * Distance metrics in embedding space
+
+KEY CONCEPTS:
+  Contrastive Loss -- Loss = (1-y)*d^2 + y*max(0, margin-d)^2
+  Triplet Loss    -- Loss = max(0, d(anchor,positive) - d(anchor,negative) + margin)
+  Margin          -- Minimum distance gap between positive and negative pairs
+  Embedding       -- A dense vector representing an image in a learned space
+
+HOW IT FITS:
+  Used by siamese_network/main.py. Read main.py first for the full pipeline,
+  then come here to understand the loss functions.
+
+PREREQUISITES:
+  Complete Lesson 1 and Lesson 2. Understand basic training loops.
+"""
+
 import inspect
 import os
 

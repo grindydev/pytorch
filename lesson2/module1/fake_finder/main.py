@@ -389,7 +389,7 @@ print('\n model:', fixed_trial.user_attrs['model'])
 # Note: It takes approximately 1 minute to run
 unittests.exercise_3(objective_function, dataset_path=AIvsReal_path)
 
-storage = "sqlite:///example.db"
+storage = "sqlite:///outputs/fake_finder_example.db"
 study_name = "AIvsReal_optimization"
 
 # Load the study

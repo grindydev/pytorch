@@ -2,6 +2,7 @@
 
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -79,7 +80,8 @@ def make_checkpoint(epoch, model, optimizer, loss, extra=None):
         ckpt.update(extra)
     return ckpt
 
-def train_model(model, train_loader, dev_loader, num_epochs, optimizer, device, checkpoint=None, save_path="best_model.pt"): 
+def train_model(model, train_loader, dev_loader, num_epochs, optimizer, device, checkpoint=None, save_path="models/metro_city/metro_city_best_model.pt"):
+    os.makedirs(os.path.dirname(save_path), exist_ok=True) 
     # Load from checkpoint if provided
     start_epoch = 0
     best_acc = 0.0
@@ -127,8 +129,8 @@ def train_model(model, train_loader, dev_loader, num_epochs, optimizer, device, 
             best_acc = val_acc
             ckpt = make_checkpoint(epoch, model, optimizer, train_loss,
                                  extra={"val_acc": val_acc})
-            torch.save(ckpt, "best_model.pt")
-            epoch_pbar.write(f"New best accuracy: {val_acc:.4f}, saved model to best_model.pt")
+            torch.save(ckpt, "models/metro_city/metro_city_best_model.pt")
+            epoch_pbar.write(f"New best accuracy: {val_acc:.4f}, saved model to models/metro_city/metro_city_best_model.pt")
     
     # Save final model
     ckpt = make_checkpoint(num_epochs-1, model, optimizer, train_loss,

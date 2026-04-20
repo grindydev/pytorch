@@ -1,9 +1,31 @@
-from torch.utils.data import Dataset, Subset, random_split, DataLoader
-import os
-import scipy
-from PIL import Image
+"""
+Lesson 1 - Module 3: Flower Dataset Classes
+=============================================
 
-class FlowerDataset(Dataset):
+WHY THIS MATTERS:
+  Real-world data is messy. Images can be corrupted, have wrong color modes,
+  or be too small. This file teaches you how to build a Dataset class that
+  handles these problems gracefully -- an essential skill for any ML project.
+
+WHAT YOU'LL LEARN:
+  * FlowerDataset: basic custom Dataset (load images + labels)
+  * Denormalize: reverse normalization for visualization
+  * RobustFlowerDataset: handle corrupted/wrong-format images without crashing
+  * MonitoredDataset: track access patterns and load times for debugging
+
+KEY CONCEPTS:
+  __len__ / __getitem -- The two methods every PyTorch Dataset must implement
+  .mat file           -- MATLAB format, often used for labels in academic datasets
+  Error handling      -- Skip bad data, log errors, keep training running
+  Forward hook        -- Tap into model layers to inspect intermediate outputs
+
+HOW IT FITS:
+  This file is USED BY main.py in the same folder. Read main.py first to see
+  how these classes are used, then come here to understand the implementation.
+
+PREREQUISITES:
+  Complete Lesson 1 Module 1 (tensors) and Module 2 (basic datasets).
+"""
     """
     A custom dataset class for loading flower image data.
 
@@ -365,7 +387,7 @@ class MonitoredDataset(RobustFlowerDataset):
         # Check if the load time exceeds a certain threshold.
         if load_time > 1.0:
             # Print a warning if a slow load time is detected.
-            print(f"⚠️ Slow load: Image {idx} took {load_time:.2f}s")
+            print(f" Slow load: Image {idx} took {load_time:.2f}s")
         # Return the loaded sample from the parent class.
         return result
 
@@ -400,7 +422,7 @@ class MonitoredDataset(RobustFlowerDataset):
         # Check if there are any images that were never loaded.
         if never_accessed:
             # Print a warning message with the count of never-accessed images.
-            print(f"\n⚠️ WARNING: {len(never_accessed)} images were never loaded!")
+            print(f"\n WARNING: {len(never_accessed)} images were never loaded!")
             # Show a few examples of the indices that were never accessed.
             print(f"   Examples: {list(never_accessed)[:5]}")
 

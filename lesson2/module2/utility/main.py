@@ -173,7 +173,7 @@ result = vutils.draw_segmentation_masks(image=(original_image_tensor * 255).byte
 resnet50_model = tv_models.resnet50(pretrained=True).eval()
 
 # Use the helper function to load the class index-to-name mappings from the JSON file.
-imagenet_classes = helper_utils.load_imagenet_classes('./imagenet_class_index.json')
+imagenet_classes = helper_utils.load_imagenet_classes('./outputs/imagenet_class_index.json')
 
 print("Total Classes:", len(imagenet_classes), "\n")
 

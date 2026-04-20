@@ -1,9 +1,37 @@
+"""
+Lesson 3 - Module 2: Fruit Quality -- Optional Diffusion Visualization
+=========================================================================
+
+WHY THIS MATTERS:
+  Seeing diffusion models in action makes the theory click. This optional
+  file lets you generate images with Stable Diffusion and watch the
+  step-by-step denoising process as a timelapse.
+
+WHAT YOU'LL LEARN:
+  * Loading and running Stable Diffusion 2 pipeline
+  * Generating images from text prompts
+  * Visualizing the denoising process step-by-step
+  * Creating a timelapse of image generation
+
+KEY CONCEPTS:
+  Denoising -- Removing noise from an image, step by step
+  Latent space -- Compressed representation where diffusion operates
+  Text guidance -- Prompt controls what image is generated
+
+HOW IT FITS:
+  Optional companion to fruit_quality/main.py. Run this after understanding
+  the basics of diffusion models from stable_diffusion/main.py.
+
+PREREQUISITES:
+  Complete stable_diffusion/main.py first.
+"""
+
 import gc
 from diffusers import StableDiffusionPipeline
 import torch
 from pathlib import Path
-import matplotlib.pyplot as plt   # ← Fixed: make sure this is here
-from PIL import Image             # ← Needed for denoising_movie
+import matplotlib.pyplot as plt
+from PIL import Image
 
 import helper_utils
 
@@ -21,7 +49,7 @@ print(f"Using device: {device}")
 def load_sd_pipeline(device):
     cache_dir = Path.cwd() / "data/models"
     
-    print("📥 Loading Stable Diffusion 2-base from community mirror...")
+    print(" Loading Stable Diffusion 2-base from community mirror...")
     
     pipe = StableDiffusionPipeline.from_pretrained(
         pretrained_model_name_or_path="sd2-community/stable-diffusion-2-base",
@@ -43,16 +71,16 @@ if "pipe" in globals():
 
 try:
     pipe = load_sd_pipeline(device)
-    print("\n✅ Pipeline loaded successfully!")
+    print("\n Pipeline loaded successfully!")
 except Exception as e:
-    print(f"❌ Error while loading pipeline:\n{e}")
+    print(f" Error while loading pipeline:\n{e}")
     pipe = None
 
 
 # ====================== GENERATE IMAGE ======================
-def generate_sd_image(pipe, prompt, negative_prompt, seed, steps, save_dir="synthetic"):
+def generate_sd_image(pipe, prompt, negative_prompt, seed, steps, save_dir="outputs/synthetic"):
     if pipe is None:
-        print("❌ Pipeline is not loaded.")
+        print(" Pipeline is not loaded.")
         return None
     
     device = pipe.device
@@ -106,9 +134,9 @@ else:
 
 
 # ====================== DENOISING MOVIE (FIXED) ======================
-def denoising_movie(pipe, prompt, seed, steps, capture_steps, save_grid_path="timelapse.png"):
+def denoising_movie(pipe, prompt, seed, steps, capture_steps, save_grid_path="outputs/figures/stable_diffusion_denoising_timelapse.png"):
     if pipe is None:
-        print("❌ Pipeline is not loaded.")
+        print(" Pipeline is not loaded.")
         return None
 
     frames = {}
@@ -172,7 +200,7 @@ if pipe is not None:
         )
 
         # Display the timelapse grid
-        grid_image = plt.imread("timelapse.png")
+        grid_image = plt.imread("outputs/figures/stable_diffusion_denoising_timelapse.png")
         plt.figure(figsize=(12, 12))
         plt.axis('off')
         plt.imshow(grid_image)

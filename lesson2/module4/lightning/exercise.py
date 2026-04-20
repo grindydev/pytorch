@@ -1,8 +1,16 @@
 
+"""
+Lesson 2 - Module 4: Lightning Exercise
+=========================================
+Practice implementing Lightning methods yourself after reading lightning/main.py.
+
+PREREQUISITES: Complete lightning/main.py first.
+"""
+
 import sys
 import warnings
 
-# # Redirect stderr to a black hole to catch other potential messages
+# Suppress noisy warnings
 # class BlackHole:
 #     def write(self, message):
 #         pass
@@ -229,7 +237,7 @@ dm_loader = CIFAR10DataModule(data_dir=data_dir,num_workers=0)
 # Create an instance of the LightningModule.
 model_baseline = CIFAR10LightningModule()
 
-log_dir = "./profiler_output"
+log_dir = "./outputs/profiler"
 
 try:
     # Configure the PyTorch Profiler for the efficient model run

@@ -401,7 +401,7 @@ def plot_widget(model, data_path):
     # --------- CONFIG ---------
     images_folder = data_path / 'images'
     canvas_size = (512, 512)
-    INPUT_OPTION_NAME = "🟢 Input image"
+    INPUT_OPTION_NAME = " Input image"
     # --------------------------
     
     # Image preprocessing

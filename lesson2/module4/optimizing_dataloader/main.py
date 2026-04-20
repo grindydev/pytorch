@@ -57,7 +57,7 @@ def experiment_workers(workers_to_test, trainset, device):
             worker_times[nw] = helper_utils.measure_average_epoch_time(loader, device)
         except RuntimeError as e:
             # If an error occurs (often from running out of shared memory)
-            print(f"\n❌ ERROR with {nw} workers. Likely a shared memory issue.")
+            print(f"\n ERROR with {nw} workers. Likely a shared memory issue.")
             worker_times[nw] = float('inf')
             
         # Clean up the loader and call the garbage collector to free up memory
@@ -149,7 +149,7 @@ def experiment_batch_sizes(batch_sizes_to_test, trainset, device):
             batch_size_times[bs] = helper_utils.measure_average_epoch_time(loader, device)
         except RuntimeError as e:
             # If an error occurs (often from running out of GPU memory),
-            print(f"\n❌ ERROR with batch size {bs}. Likely a GPU memory issue.")
+            print(f"\n ERROR with batch size {bs}. Likely a GPU memory issue.")
             batch_size_times[bs] = float('inf')
             
         # Clean up the loader and call the garbage collector to free up memory
@@ -220,7 +220,7 @@ def experiment_pin_memory(pin_memory_settings, trainset, device):
             pin_memory_times[setting] = helper_utils.measure_average_epoch_time(loader, device)
         except RuntimeError as e:
             # Print an error message if an exception occurs
-            print(f"\n❌ An error occurred with pin_memory = {setting}: {e}")
+            print(f"\n An error occurred with pin_memory = {setting}: {e}")
             pin_memory_times[setting] = float('inf')
             
         # --- Memory Cleanup for each iteration ---
@@ -291,7 +291,7 @@ def experiment_prefetch_factor(prefetch_factors_to_test, trainset, device):
             prefetch_factor_times[pf] = helper_utils.measure_average_epoch_time(loader, device)
         except RuntimeError as e:
             # If an error occurs, record it.
-            print(f"\n❌ ERROR with prefetch_factor {pf}: {e}")
+            print(f"\n ERROR with prefetch_factor {pf}: {e}")
             prefetch_factor_times[pf] = float('inf')
             
         # Clean up the loader and call the garbage collector to free up memory

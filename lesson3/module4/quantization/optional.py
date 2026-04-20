@@ -1,3 +1,18 @@
+"""
+Lesson 3 - Module 4: Quantization -- Optional Exercise
+=========================================================
+
+WHY THIS MATTERS:
+  Optional exercises for practicing quantization techniques on real models.
+  This complements quantization/main.py with additional hands-on work.
+
+HOW IT FITS:
+  Optional companion to quantization/main.py. Complete main.py first.
+
+PREREQUISITES:
+  Complete quantization/main.py first.
+"""
+
 from pathlib import Path
 import torch
 import torch.nn as nn
@@ -46,7 +61,7 @@ print(f"Baseline Inference Time: {blip_model_inf_time:.4f} s")
 print('\n' + '='*50 + " Dynamic Quantization on BLIP VQA " + '='*50 + '\n')
 
 torch.backends.quantized.engine = 'qnnpack'
-print("✅ Quantized engine set to 'qnnpack' (required for Mac)")
+print(" Quantized engine set to 'qnnpack' (required for Mac)")
 
 try:
     # LEARNING: We only quantize Linear layers because BLIP has many of them.
@@ -56,10 +71,10 @@ try:
         {nn.Linear},
         dtype=torch.qint8
     )
-    print("✅ Dynamic quantization applied successfully!")
+    print(" Dynamic quantization applied successfully!")
 
 except Exception as e:
-    print(f"❌ Dynamic quantization failed: {e}")
+    print(f" Dynamic quantization failed: {e}")
     print("   → This is common on Mac with large models like BLIP.")
     quantized_blip_vqa_model = None   # fallback
 
@@ -87,7 +102,7 @@ if quantized_blip_vqa_model is not None:
     )
 
 else:
-    print("\n⚠️  Quantization failed, so no comparison table is shown.")
+    print("\n  Quantization failed, so no comparison table is shown.")
     print("   You can still use the original baseline model.")
 
-print("\n🎉 BLIP VQA quantization script finished!")
+print("\n BLIP VQA quantization script finished!")

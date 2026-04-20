@@ -645,7 +645,7 @@ print("="*70)
 for i in range(5):
     pred_label = "Positive" if predictions[i] == 1 else "Negative"
     true_label = "Positive" if sample_labels[i] == 1 else "Negative"
-    correct = "✓" if predictions[i] == sample_labels[i] else "✗"
+    correct = "" if predictions[i] == sample_labels[i] else ""
     
     # Decode the tokens back to words (first 30 tokens for brevity)
     tokens = sample_input[i][:30].tolist()
@@ -829,7 +829,7 @@ output = pytorch_model(sample_input)
 print(f"\nTest forward pass:")
 print(f"  Input shape: {sample_input.shape}")
 print(f"  Output shape: {output[0].shape}")
-print("  Model works! ✓")
+print("  Model works! ")
 
 class IMDBClassifierWithPytorchEncoder(nn.Module):
     """

@@ -1,3 +1,32 @@
+"""
+Lesson 1 - Module 4: Simple CNN Models for Debugging
+=====================================================
+
+WHY THIS MATTERS:
+  Shape mismatches are the #1 bug in deep learning. This file provides
+  debug versions of a CNN that print intermediate tensor shapes and
+  activation statistics at every layer. Learning this debugging technique
+  will save you hours of frustration.
+
+WHAT YOU'LL LEARN:
+  * SimpleCNN: a clean 2-block CNN for Fashion MNIST
+  * SimpleCNNDebug: subclass that prints shapes at each layer
+  * SimpleCNN2Seq: same model using nn.Sequential
+  * SimpleCNN2SeqDebug: adds activation statistics (mean, std, min, max)
+
+KEY CONCEPTS:
+  Debug subclassing -- Override forward() to add print() statements
+  Activation stats  -- Mean/std/min/max reveal vanishing/exploding activations
+  nn.Sequential     -- Container that chains layers automatically
+
+HOW IT FITS:
+  Used by debugging/main.py. Read main.py to see how these debug versions
+  are used to diagnose shape and activation problems.
+
+PREREQUISITES:
+  Complete Lesson 1 Module 4: cnn/cnn_block.py and cnn/main.py first.
+"""
+
 from torch import nn
 import torch
 

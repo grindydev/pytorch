@@ -1,5 +1,6 @@
 import ast
 import inspect
+import os
 import random
 
 import matplotlib as mpl
@@ -410,7 +411,8 @@ def plot_and_select_best_model(all_trained_data, bar_color=color_map["blue"]):
     # Adjust plot parameters to ensure everything fits without overlapping.
     plt.tight_layout()
     # Save the generated plot as a PNG image file.
-    plt.savefig("f1_score_comparison.png")
+    os.makedirs(os.path.dirname("outputs/figures/text_classifier_f1_comparison.png"), exist_ok=True)
+    plt.savefig("outputs/figures/text_classifier_f1_comparison.png")
 
     # Identify the name of the model with the highest F1 score.
     best_model_name = performance_series.index[0]

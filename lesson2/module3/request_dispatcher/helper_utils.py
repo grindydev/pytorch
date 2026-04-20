@@ -391,7 +391,8 @@ def predict_category(model, tokenizer, text, device, id2cat):
 
 
 
-def save_training_logs(partial_results, filename="training_logs.pkl"):
+def save_training_logs(partial_results, filename="outputs/request_dispatcher_training_logs.pkl"):
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
     """
     Serializes and saves a results object to a file using pickle.
 
